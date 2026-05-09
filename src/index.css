@@ -1,0 +1,67 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-solar: #F97316;
+  --color-solar-dark: #C2410C;
+  --color-solar-light: #FFEDD5;
+  --font-sans: "Inter", "system-ui", "-apple-system", "sans-serif";
+}
+
+/* ─── Base ─────────────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent; /* Remove tap flash on mobile */
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: #f8fafc;
+  color: #1a1a1a;
+  /* Prevent horizontal scroll on mobile */
+  overflow-x: hidden;
+  /* Better text rendering on mobile */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─── Prevent zoom on input focus (iOS Safari) ─────────────────────────── */
+input, select, textarea {
+  font-size: 16px !important; /* >= 16px prevents auto-zoom on iOS */
+}
+
+/* ─── Touch-friendly tap targets ──────────────────────────────────────── */
+button, a, [role="button"] {
+  min-height: 44px; /* Apple HIG minimum tap target */
+}
+
+/* ─── Mobile scroll improvements ──────────────────────────────────────── */
+.overflow-y-auto, .overflow-x-auto {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* ─── Smooth scrolling ─────────────────────────────────────────────────── */
+html {
+  scroll-behavior: smooth;
+}
+
+/* ─── Safe area insets (iPhone notch / Dynamic Island) ─────────────────── */
+.safe-top    { padding-top: env(safe-area-inset-top); }
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+.safe-left   { padding-left: env(safe-area-inset-left); }
+.safe-right  { padding-right: env(safe-area-inset-right); }
+
+/* ─── Card hover disabled on touch devices ─────────────────────────────── */
+@media (hover: none) {
+  .hover\:shadow-md:hover { box-shadow: none; }
+  .hover\:bg-slate-50:hover { background-color: transparent; }
+}
+
+/* ─── Scrollbar styling (desktop only) ─────────────────────────────────── */
+@media (min-width: 768px) {
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: #f1f5f9; }
+  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+}

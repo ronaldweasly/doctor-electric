@@ -1,0 +1,10 @@
+# Frontend Docker ignore
+node_modules
+dist
+.env
+.env.local
+.git
+*.md
+.vscode
+.vercel
+backups
