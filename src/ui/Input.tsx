@@ -10,17 +10,29 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
   ({ className, error, label, ...props }, ref) => {
     return (
       <div className="w-full">
-        {label && <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>}
+        {label && (
+          <label className="block text-sm font-semibold text-slate-700 mb-2">
+            {label}
+          </label>
+        )}
         <input
           ref={ref}
           className={cn(
-            'flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-solar focus:border-transparent disabled:cursor-not-allowed disabled:opacity-50',
-            error && 'border-red-500 focus:ring-red-500',
+            'w-full px-4 py-3 text-base rounded-lg border-2 border-slate-200 bg-white',
+            'placeholder:text-slate-400 transition-colors',
+            'focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20',
+            'disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-not-allowed',
+            'active:border-blue-400',
+            error && 'border-red-500 focus:border-red-500 focus:ring-red-500/20',
             className
           )}
           {...props}
         />
-        {error && <p className="mt-1 text-sm text-red-500">{error}</p>}
+        {error && (
+          <p className="mt-2 text-sm font-medium text-red-600 flex items-center gap-1">
+            <span>⚠</span> {error}
+          </p>
+        )}
       </div>
     );
   }

@@ -1,21 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getSheetData, appendRow, deleteClientCompletely } from '../sheets/api';
+import { getSheetData } from '../sheets/api';
 import { SHEET_NAMES } from '../sheets/config';
 import { ClientRow, WorkflowStatusRow, UserRow } from '../sheets/types';
 import { Card, CardContent } from '../ui/Card';
 import { Button } from '../ui/Button';
-import { Input } from '../ui/Input';
-import { Select } from '../ui/Select';
 import { SlideOver } from '../ui/SlideOver';
 import { Badge } from '../ui/Badge';
 import { Skeleton } from '../ui/Skeleton';
-import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
-import { v4 as uuidv4 } from 'uuid';
 import { useAuth } from '../contexts/AuthContext';
-import { uploadFileToStorage } from '../sheets/supabase';
-import { Trash2 } from 'lucide-react';
+import { MultiStepClientForm } from '../components/MultiStepClientForm';
 
 export default function ClientsPage() {
   const [clients, setClients] = useState<any[]>([]);
@@ -23,27 +18,9 @@ export default function ClientsPage() {
   const [isSlideOpen, setIsSlideOpen] = useState(false);
   const [salesUsers, setSalesUsers] = useState<{label: string, value: string}[]>([]);
   const [search, setSearch] = useState('');
-  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { register, handleSubmit, reset, setValue, watch, formState: { errors, isSubmitting } } = useForm();
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, fieldName: string) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    
-    const toastId = toast.loading(`Uploading ${file.name}...`);
-    try {
-       // Upload to Supabase Storage
-       const publicUrl = await uploadFileToStorage(file, 'client_uploads');
-       setValue(fieldName, publicUrl);
-       toast.success(`${file.name} uploaded successfully!`, { id: toastId });
-    } catch (error: any) {
-       console.error("Upload Error:", error);
-       toast.error(`Upload failed: ${error.message}`, { id: toastId });
-    }
-  };
 
   const loadData = async () => {
     try {
@@ -56,7 +33,6 @@ export default function ClientsPage() {
 
       const workflowMap = new Map();
       workflow.forEach(w => {
-         // keep the latest entry. Assuming sheets are appended over time, the last one is latest.
          workflowMap.set(w['Client ID'], w.Stage);
       });
 
@@ -65,7 +41,7 @@ export default function ClientsPage() {
         Stage: workflowMap.get(c.ID) || 'Lead'
       }));
 
-      setClients(merged.reverse()); // Show newest first
+      setClients(merged.reverse());
 
       const assignees = allUsers
         .filter(u => u.Active === 'TRUE' && (u.Role === 'Sales Team' || u.Role === 'Admin'))
@@ -83,96 +59,11 @@ export default function ClientsPage() {
     loadData();
   }, []);
 
-  useEffect(() => {
-    if (!pendingDeleteId) return;
-    const timeout = setTimeout(() => setPendingDeleteId(null), 5000);
-    return () => clearTimeout(timeout);
-  }, [pendingDeleteId]);
-
-  const onSubmit = async (data: any) => {
-    try {
-      const clientId = uuidv4().slice(0, 8).toUpperCase();
-      const createdDate = new Date().toLocaleDateString('en-GB'); // DD/MM/YYYY
-
-      const clientRow = [
-        clientId,
-        data.Name,
-        data.Phone,
-        data.Address,
-        data.RoofType,
-        data.SystemSize,
-        createdDate,
-        data.AssignedTo || user?.email || ''
-      ];
-
-      const workflowRow = [
-        clientId,
-        'Lead',
-        new Date().toISOString(),
-        user?.email || ''
-      ];
-
-      await appendRow(SHEET_NAMES.CLIENTS, clientRow);
-      await appendRow(SHEET_NAMES.WORKFLOW_STATUS, workflowRow);
-
-      // Handle optional sections if filled
-      if (data.SurveyDate || data.SurveyorName || data.SiteImages || data.RecommendedDetails) {
-         await appendRow(SHEET_NAMES.SURVEYS, [clientId, data.SurveyDate || '', data.SiteImages || '', data.RecommendedDetails || '', data.SurveyorName || '']);
-      }
-      if (data.QuotationPDF || data.QuotationAmount || data.QuotationValidity || data.QuotationStatus) {
-         await appendRow(SHEET_NAMES.QUOTATIONS, [clientId, data.QuotationPDF || '', data.QuotationAmount || '', data.QuotationValidity || '', data.QuotationStatus || '']);
-      }
-      if (data.InstallStart || data.InstallEnd || data.InstallTeam) {
-         await appendRow(SHEET_NAMES.INSTALLATIONS, [clientId, data.InstallTeam || '', '', '', data.InstallStart || '', data.InstallEnd || '']);
-      }
-      if (data.SubsidyStatus || data.SubsidyApplied || data.SubsidyApproval || data.SubsidyAmount) {
-         await appendRow(SHEET_NAMES.SUBSIDIES, [clientId, data.SubsidyStatus || '', data.SubsidyApplied || '', data.SubsidyApproval || '', data.SubsidyAmount || '']);
-      }
-      if (data.PaymentTotal || data.PaymentPaid || data.PaymentPending || data.PaymentDue || data.PaymentStatus) {
-         await appendRow(SHEET_NAMES.PAYMENTS, [clientId, data.PaymentTotal || '', data.PaymentPaid || '', data.PaymentPending || '', data.PaymentDue || '', data.PaymentStatus || '']);
-      }
-      if (data.AadhaarLink || data.ElectricityBillLink || data.AadhaarNumber || data.BillNumber) {
-         await appendRow(SHEET_NAMES.DOCUMENTS, [clientId, data.AadhaarLink || data.AadhaarNumber || '', data.ElectricityBillLink || data.BillNumber || '', '', '', '']);
-      }
-
-      toast.success('Client profile created completely!');
-      setIsSlideOpen(false);
-      reset();
-      loadData();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to create client');
-    }
-  };
-
   const filteredClients = clients.filter(c => 
     c.Name.toLowerCase().includes(search.toLowerCase()) || 
     c.Phone.includes(search) ||
     c.Stage.toLowerCase().includes(search.toLowerCase())
   );
-
-  const handleDeleteClient = async (e: React.MouseEvent, clientId: string, clientName: string) => {
-    e.stopPropagation();
-
-    if (user?.role !== 'Admin') {
-      toast.error('Only Admin can delete clients');
-      return;
-    }
-
-    if (pendingDeleteId !== clientId) {
-      setPendingDeleteId(clientId);
-      toast.warning('Click delete again within 5 seconds to confirm');
-      return;
-    }
-
-    try {
-      await deleteClientCompletely(clientId);
-      toast.success(`Client "${clientName}" deleted successfully`);
-      setPendingDeleteId(null);
-      loadData();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to delete client');
-    }
-  };
 
   return (
     <div className="space-y-3 sm:space-y-4 md:space-y-6">
@@ -238,18 +129,6 @@ export default function ClientsPage() {
                     <p className="text-slate-600"><span className="font-medium">System:</span> {client['System Size (kW)']}kW</p>
                     <p className="text-slate-500 truncate"><span className="font-medium">Address:</span> {client.Address}</p>
                   </div>
-                  {user?.role === 'Admin' && (
-                    <div className="mt-3">
-                      <Button
-                        variant={pendingDeleteId === client.ID ? 'danger' : 'outline'}
-                        size="sm"
-                        onClick={(e) => handleDeleteClient(e, client.ID, client.Name)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5 mr-1" />
-                        {pendingDeleteId === client.ID ? 'Confirm Delete' : 'Delete'}
-                      </Button>
-                    </div>
-                  )}
                 </div>
               ))
             )}
@@ -310,28 +189,8 @@ export default function ClientsPage() {
                           {client.Stage}
                         </Badge>
                       </td>
-                      <td className="px-4 md:px-6 py-4">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            className="font-medium text-blue-700 hover:text-blue-900"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              navigate(`/clients/${client.ID}`);
-                            }}
-                          >
-                            Details
-                          </button>
-                          {user?.role === 'Admin' && (
-                            <Button
-                              variant={pendingDeleteId === client.ID ? 'danger' : 'outline'}
-                              size="sm"
-                              onClick={(e) => handleDeleteClient(e, client.ID, client.Name)}
-                            >
-                              <Trash2 className="h-3.5 w-3.5 mr-1" />
-                              {pendingDeleteId === client.ID ? 'Confirm Delete' : 'Delete'}
-                            </Button>
-                          )}
-                        </div>
+                      <td className="px-4 md:px-6 py-4 text-right font-medium text-blue-700">
+                        Details
                       </td>
                     </tr>
                   ))
@@ -343,187 +202,14 @@ export default function ClientsPage() {
       </Card>
 
       <SlideOver isOpen={isSlideOpen} onClose={() => setIsSlideOpen(false)} title="Add New Client">
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 pt-2 pb-8">
-          
-          <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-slate-800 uppercase tracking-wider border-b pb-2">1. Client Info</h3>
-            <Input 
-              label="Name *" 
-              {...register('Name', { required: 'Name is required' })} 
-              error={errors.Name?.message as string}
-            />
-            <Input 
-              label="Phone Number *" 
-              {...register('Phone', { required: 'Phone Number is required' })} 
-              error={errors.Phone?.message as string}
-            />
-            <Input 
-              label="Address *" 
-              {...register('Address', { required: 'Address is required' })} 
-              error={errors.Address?.message as string}
-            />
-            <div className="grid grid-cols-2 gap-4">
-              <Select 
-                label="Roof Type *" 
-                {...register('RoofType', { required: 'Roof Type is required' })} 
-                options={[
-                  {label: 'Select...', value: ''},
-                  {label: 'Flat', value: 'Flat'},
-                  {label: 'Sloped', value: 'Sloped'},
-                  {label: 'Mixed', value: 'Mixed'}
-                ]}
-                error={errors.RoofType?.message as string}
-              />
-              <Select 
-                label="System Size (kW) *" 
-                {...register('SystemSize', { required: 'System size is required' })} 
-                options={[
-                  {label: 'Select...', value: ''},
-                  {label: '3 kW', value: '3'},
-                  {label: '5 kW', value: '5'},
-                  {label: '8 kW', value: '8'},
-                  {label: '10 kW', value: '10'},
-                  {label: '15 kW', value: '15'},
-                  {label: '20 kW', value: '20'}
-                ]}
-                error={errors.SystemSize?.message as string}
-              />
-            </div>
-            <Select 
-              label="Assign To" 
-              {...register('AssignedTo')} 
-              options={[{label: 'Unassigned', value: ''}, ...salesUsers]}
-            />
-          </div>
-
-          <div className="space-y-4 pt-4">
-            <h3 className="text-sm font-semibold text-slate-800 uppercase tracking-wider border-b pb-2">2. Initial Documents</h3>
-            <p className="text-xs text-slate-500">Upload documents or enter document numbers.</p>
-            
-            {/* Aadhaar Section */}
-            <div className="space-y-3 border border-slate-200 rounded-lg p-4 bg-slate-50">
-              <label className="block text-sm font-medium text-slate-700">Aadhaar</label>
-              <div className="space-y-3">
-                <div>
-                  <label className="text-xs font-medium text-slate-600 block mb-1.5">Upload Photo / PDF</label>
-                  <div className="flex flex-col lg:flex-row gap-2 items-start">
-                    <input type="file" accept="image/*,.pdf" onChange={(e) => handleFileUpload(e, 'AadhaarLink')} className="text-sm border border-slate-300 p-1.5 rounded-md w-full lg:w-auto" />
-                    <Input placeholder="Or paste Drive link" {...register('AadhaarLink')} />
-                  </div>
-                </div>
-                <div className="border-t pt-3">
-                  <label className="text-xs font-medium text-slate-600 block mb-1.5">Or Enter Aadhaar Number</label>
-                  <Input placeholder="XXXX XXXX XXXX" {...register('AadhaarNumber')} maxLength="12" />
-                </div>
-              </div>
-            </div>
-
-            {/* Electricity Bill Section */}
-            <div className="space-y-3 border border-slate-200 rounded-lg p-4 bg-slate-50">
-              <label className="block text-sm font-medium text-slate-700">Electricity Bill</label>
-              <div className="space-y-3">
-                <div>
-                  <label className="text-xs font-medium text-slate-600 block mb-1.5">Upload Photo / PDF</label>
-                  <div className="flex flex-col lg:flex-row gap-2 items-start">
-                    <input type="file" accept="image/*,.pdf" onChange={(e) => handleFileUpload(e, 'ElectricityBillLink')} className="text-sm border border-slate-300 p-1.5 rounded-md w-full lg:w-auto" />
-                    <Input placeholder="Or paste Drive link" {...register('ElectricityBillLink')} />
-                  </div>
-                </div>
-                <div className="border-t pt-3">
-                  <label className="text-xs font-medium text-slate-600 block mb-1.5">Or Enter Bill Number</label>
-                  <Input placeholder="Electricity bill number" {...register('BillNumber')} />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-4 pt-4">
-            <h3 className="text-sm font-semibold text-slate-800 uppercase tracking-wider border-b pb-2">3. Survey Details (Optional)</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <Input label="Survey Date" type="date" {...register('SurveyDate')} />
-              <Input label="Surveyor Name" {...register('SurveyorName')} />
-            </div>
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-slate-700">Site Images</label>
-              <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
-                <input type="file" multiple accept="image/*" onChange={(e) => handleFileUpload(e, 'SiteImages')} className="text-sm border border-slate-300 p-1.5 rounded-md w-full sm:w-auto" />
-                <Input placeholder="Or paste Drive link" {...register('SiteImages')} />
-              </div>
-            </div>
-            <div className="w-full">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Recommended System Details</label>
-              <textarea 
-                className="w-full rounded-md border border-slate-300 p-2 text-sm focus:ring-2 focus:ring-blue-700 outline-none min-h-[80px]"
-                {...register('RecommendedDetails')}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-4 pt-4">
-            <h3 className="text-sm font-semibold text-slate-800 uppercase tracking-wider border-b pb-2">4. Quotation (Optional)</h3>
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-slate-700">Quotation PDF</label>
-              <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
-                <input type="file" accept=".pdf" onChange={(e) => handleFileUpload(e, 'QuotationPDF')} className="text-sm border border-slate-300 p-1.5 rounded-md w-full sm:w-auto" />
-                <Input placeholder="Or paste Drive link" {...register('QuotationPDF')} />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <Input label="Amount (₹)" type="number" {...register('QuotationAmount')} />
-              <Input label="Validity Date" type="date" {...register('QuotationValidity')} />
-            </div>
-            <Select 
-              label="Approval Status" 
-              {...register('QuotationStatus')} 
-              options={[{label:'Pending',value:'Pending'},{label:'Approved',value:'Approved'},{label:'Rejected',value:'Rejected'}]}
-            />
-          </div>
-
-          <div className="space-y-4 pt-4">
-            <h3 className="text-sm font-semibold text-slate-800 uppercase tracking-wider border-b pb-2">5. Installation & Subsidy (Optional)</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <Input label="Installation Start" type="date" {...register('InstallStart')} />
-              <Select 
-                label="Subsidy Status" 
-                {...register('SubsidyStatus')} 
-                options={[
-                  {label:'Select...', value:''},
-                  {label:'Applied', value:'Applied'},
-                  {label:'Under Review', value:'Under Review'},
-                  {label:'Approved', value:'Approved'},
-                  {label:'Received', value:'Received'}
-                ]}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-4 pt-4">
-            <h3 className="text-sm font-semibold text-slate-800 uppercase tracking-wider border-b pb-2">6. Payment Details (Optional)</h3>
-            <div className="grid grid-cols-2 gap-4">
-               <Input label="Total Amount (₹)" type="number" {...register('PaymentTotal')} />
-               <Input label="Paid Amount (₹)" type="number" {...register('PaymentPaid')} />
-               <Input label="Pending Amount (₹)" type="number" {...register('PaymentPending')} />
-               <Input label="Due Date" type="date" {...register('PaymentDue')} />
-            </div>
-            <Select 
-              label="Payment Status" 
-              {...register('PaymentStatus')} 
-              options={[
-                {label:'Select...', value:''},
-                {label:'Pending',value:'Pending'},
-                {label:'Partial',value:'Partial'},
-                {label:'Paid',value:'Paid'},
-                {label:'Overdue',value:'Overdue'}
-              ]}
-            />
-          </div>
-
-          <div className="pt-8 mb-8">
-            <Button type="submit" disabled={isSubmitting} className="w-full text-base py-3">
-              {isSubmitting ? 'Saving...' : 'Save Complete Client Profile'}
-            </Button>
-          </div>
-        </form>
+        <MultiStepClientForm 
+          salesUsers={salesUsers} 
+          user={user}
+          onSuccess={() => {
+            setIsSlideOpen(false);
+            loadData();
+          }}
+        />
       </SlideOver>
     </div>
   );

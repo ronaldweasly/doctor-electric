@@ -8,7 +8,7 @@ import { MobileProvider } from '../contexts/MobileContext';
 export default function Layout() {
   return (
     <MobileProvider>
-      <div className="flex h-[100dvh] w-full bg-slate-50 font-sans text-slate-900 overflow-hidden">
+      <div className="flex h-[100dvh] w-full bg-slate-50 font-sans text-slate-900 overflow-hidden safe-top safe-bottom safe-left safe-right">
         {/* Desktop sidebar — hidden on mobile */}
         <Sidebar />
 
@@ -16,8 +16,8 @@ export default function Layout() {
           <Navbar />
 
           {/* Main scrollable content area — only this scrolls, navbar/sidebar fixed */}
-          <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-6 lg:p-8
-                           pb-20 lg:pb-8"> {/* pb-20 = space for bottom nav on mobile */}
+          <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden -webkit-overflow-scrolling p-3 sm:p-4 md:p-6 lg:p-8
+                           pb-20 lg:pb-8 touch-manipulation"> {/* pb-20 = space for bottom nav on mobile */}
             <Outlet />
           </main>
         </div>
@@ -28,3 +28,4 @@ export default function Layout() {
     </MobileProvider>
   );
 }
+
