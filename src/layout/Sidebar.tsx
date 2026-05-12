@@ -10,9 +10,9 @@ export function Sidebar() {
   const { isSidebarOpen, closeSidebar } = useMobile();
 
   const navigation = [
-    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['Admin', 'Sales Team', 'Engineer', 'Accountant'] },
-    { name: 'Clients', href: '/clients', icon: Users, roles: ['Admin', 'Sales Team', 'Engineer', 'Accountant'] },
-    { name: 'Reports', href: '/reports', icon: FileBarChart, roles: ['Admin', 'Accountant'] },
+    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['Admin', 'Manager', 'Sales Team', 'Engineer', 'Accountant'] },
+    { name: 'Clients', href: '/clients', icon: Users, roles: ['Admin', 'Manager', 'Sales Team', 'Engineer', 'Accountant'] },
+    { name: 'Reports', href: '/reports', icon: FileBarChart, roles: ['Admin', 'Manager', 'Accountant'] },
     { name: 'Users', href: '/users', icon: Settings, roles: ['Admin'] },
   ];
 

@@ -13,6 +13,8 @@ import { Skeleton } from '../ui/Skeleton';
 import { toast } from 'sonner';
 import { validateUploadFile, generateUniqueFilename, addUploadRecord, formatFileSize } from '../utils/upload';
 import { uploadFileToStorage } from '../sheets/supabase';
+import { FileText } from 'lucide-react';
+import ProposalGenerator from '../components/ProposalGenerator';
 
 const STAGES = [
   'Lead', 'Survey Scheduled', 'Survey Done', 'Quotation Sent', 
@@ -37,6 +39,7 @@ export default function ClientDetail() {
   const [subsidy, setSubsidy] = useState<any>({});
   const [payment, setPayment] = useState<any>({});
   const [documents, setDocuments] = useState<any>({});
+  const [proposalOpen, setProposalOpen] = useState(false);
 
   const loadData = async () => {
     if (!id) return;
@@ -303,7 +306,17 @@ export default function ClientDetail() {
                   <Input placeholder="Or paste Drive link" value={quotation['Quotation PDF'] || documents['Quotation Doc Link'] || ''} onChange={e => setQuotation({...quotation, 'Quotation PDF': e.target.value})} disabled={!canEditQuotation} />
                 </div>
               </div>
-              {canEditQuotation && <Button onClick={() => handleSaveTab(SHEET_NAMES.QUOTATIONS, quotation, setQuotation, ['Quotation PDF', 'Amount (₹)', 'Validity Date', 'Approval Status'])}>Save Quotation</Button>}
+              {canEditQuotation && (
+                <div className="flex flex-wrap gap-2">
+                  <Button onClick={() => handleSaveTab(SHEET_NAMES.QUOTATIONS, quotation, setQuotation, ['Quotation PDF', 'Amount (₹)', 'Validity Date', 'Approval Status'])}>
+                    Save Quotation
+                  </Button>
+                  <Button variant="outline" onClick={() => setProposalOpen(true)}>
+                    <FileText className="h-4 w-4 mr-2" />
+                    Generate Proposal
+                  </Button>
+                </div>
+              )}
             </div>
           )}
 
@@ -381,55 +394,90 @@ export default function ClientDetail() {
           )}
 
           {activeTab === 'Documents' && (
-            <div className="space-y-4 max-w-2xl">
-              <p className="text-sm text-gray-500 mb-4">Upload files directly to Google Drive or provide links manually.</p>
+            <div className="space-y-4 max-w-4xl">
+              <p className="text-sm text-gray-500 mb-4">Upload files directly or provide links/document numbers manually.</p>
               
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Aadhaar Document</label>
-                <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
-                  <input type="file" onChange={(e) => handleFileUpload(e, documents, setDocuments, 'Aadhaar Link')} className="text-sm border border-slate-300 p-1.5 rounded-md w-full sm:w-auto" />
-                  <Input value={documents['Aadhaar Link'] || ''} onChange={e => setDocuments({...documents, 'Aadhaar Link': e.target.value})} placeholder="Drive Link" />
+              {/* Aadhaar Section */}
+              <div className="space-y-3 border border-slate-200 rounded-lg p-4 bg-slate-50">
+                <label className="text-sm font-medium text-slate-700">Aadhaar</label>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs font-medium text-slate-600 block mb-1.5">Upload Photo / PDF</label>
+                    <div className="flex flex-col lg:flex-row gap-2 items-start">
+                      <input type="file" onChange={(e) => handleFileUpload(e, documents, setDocuments, 'Aadhaar Link')} className="text-sm border border-slate-300 p-1.5 rounded-md w-full lg:w-auto" />
+                      <Input value={documents['Aadhaar Link'] || ''} onChange={e => setDocuments({...documents, 'Aadhaar Link': e.target.value})} placeholder="Drive Link" />
+                    </div>
+                  </div>
+                  <div className="border-t pt-3">
+                    <label className="text-xs font-medium text-slate-600 block mb-1.5">Or Enter Aadhaar Number</label>
+                    <Input value={documents['Aadhaar Number'] || ''} onChange={e => setDocuments({...documents, 'Aadhaar Number': e.target.value})} placeholder="XXXX XXXX XXXX" maxLength="12" />
+                  </div>
                 </div>
               </div>
               
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Electricity Bill</label>
-                <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
-                  <input type="file" onChange={(e) => handleFileUpload(e, documents, setDocuments, 'Electricity Bill Link')} className="text-sm border border-slate-300 p-1.5 rounded-md w-full sm:w-auto" />
-                  <Input value={documents['Electricity Bill Link'] || ''} onChange={e => setDocuments({...documents, 'Electricity Bill Link': e.target.value})} placeholder="Drive Link" />
+              {/* Electricity Bill Section */}
+              <div className="space-y-3 border border-slate-200 rounded-lg p-4 bg-slate-50">
+                <label className="text-sm font-medium text-slate-700">Electricity Bill</label>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs font-medium text-slate-600 block mb-1.5">Upload Photo / PDF</label>
+                    <div className="flex flex-col lg:flex-row gap-2 items-start">
+                      <input type="file" onChange={(e) => handleFileUpload(e, documents, setDocuments, 'Electricity Bill Link')} className="text-sm border border-slate-300 p-1.5 rounded-md w-full lg:w-auto" />
+                      <Input value={documents['Electricity Bill Link'] || ''} onChange={e => setDocuments({...documents, 'Electricity Bill Link': e.target.value})} placeholder="Drive Link" />
+                    </div>
+                  </div>
+                  <div className="border-t pt-3">
+                    <label className="text-xs font-medium text-slate-600 block mb-1.5">Or Enter Bill Number</label>
+                    <Input value={documents['Bill Number'] || ''} onChange={e => setDocuments({...documents, 'Bill Number': e.target.value})} placeholder="Electricity bill number" />
+                  </div>
                 </div>
               </div>
 
               <div className="space-y-2">
                 <label className="text-sm font-medium">Quotation Doc</label>
-                <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
-                  <input type="file" onChange={(e) => handleFileUpload(e, documents, setDocuments, 'Quotation Doc Link')} className="text-sm border border-slate-300 p-1.5 rounded-md w-full sm:w-auto" />
+                <div className="flex flex-col lg:flex-row gap-2 items-start">
+                  <input type="file" onChange={(e) => handleFileUpload(e, documents, setDocuments, 'Quotation Doc Link')} className="text-sm border border-slate-300 p-1.5 rounded-md w-full lg:w-auto" />
                   <Input value={documents['Quotation Doc Link'] || ''} onChange={e => setDocuments({...documents, 'Quotation Doc Link': e.target.value})} placeholder="Drive Link" />
                 </div>
               </div>
               
               <div className="space-y-2">
                 <label className="text-sm font-medium">Installation Photos</label>
-                <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
-                  <input type="file" multiple onChange={(e) => handleFileUpload(e, documents, setDocuments, 'Installation Photos Link')} className="text-sm border border-slate-300 p-1.5 rounded-md w-full sm:w-auto" />
+                <div className="flex flex-col lg:flex-row gap-2 items-start">
+                  <input type="file" multiple onChange={(e) => handleFileUpload(e, documents, setDocuments, 'Installation Photos Link')} className="text-sm border border-slate-300 p-1.5 rounded-md w-full lg:w-auto" />
                   <Input value={documents['Installation Photos Link'] || ''} onChange={e => setDocuments({...documents, 'Installation Photos Link': e.target.value})} placeholder="Drive Link" />
                 </div>
               </div>
               
               <div className="space-y-2">
                 <label className="text-sm font-medium">Subsidy Docs</label>
-                <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
-                  <input type="file" multiple onChange={(e) => handleFileUpload(e, documents, setDocuments, 'Subsidy Docs Link')} className="text-sm border border-slate-300 p-1.5 rounded-md w-full sm:w-auto" />
+                <div className="flex flex-col lg:flex-row gap-2 items-start">
+                  <input type="file" multiple onChange={(e) => handleFileUpload(e, documents, setDocuments, 'Subsidy Docs Link')} className="text-sm border border-slate-300 p-1.5 rounded-md w-full lg:w-auto" />
                   <Input value={documents['Subsidy Docs Link'] || ''} onChange={e => setDocuments({...documents, 'Subsidy Docs Link': e.target.value})} placeholder="Drive Link" />
                 </div>
               </div>
 
-              <Button onClick={() => handleSaveTab(SHEET_NAMES.DOCUMENTS, documents, setDocuments, ['Aadhaar Link', 'Electricity Bill Link', 'Quotation Doc Link', 'Installation Photos Link', 'Subsidy Docs Link'])} className="mt-4">Save Document Links</Button>
+              <Button onClick={() => handleSaveTab(SHEET_NAMES.DOCUMENTS, documents, setDocuments, ['Aadhaar Link', 'Aadhaar Number', 'Electricity Bill Link', 'Bill Number', 'Quotation Doc Link', 'Installation Photos Link', 'Subsidy Docs Link'])} className="mt-4">Save Document Links</Button>
             </div>
           )}
 
         </CardContent>
       </Card>
+
+      {client && (
+        <ProposalGenerator
+          clientId={id || ''}
+          clientData={client}
+          quotationData={quotation?._isNew ? null : quotation}
+          isOpen={proposalOpen}
+          onClose={() => setProposalOpen(false)}
+          onSaved={(url) => {
+            setQuotation((prev: any) => ({ ...prev, 'Quotation PDF': url }));
+            toast.success('Proposal saved to client record');
+            setProposalOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -11,13 +11,32 @@ interface SlideOverProps {
 
 export function SlideOver({ isOpen, onClose, title, children }: SlideOverProps) {
   useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
+    const lockScroll = () => {
+      const w = window as any;
+      if (typeof w.__solarcrmScrollLockCount !== 'number') {
+        w.__solarcrmScrollLockCount = 0;
+      }
+      if (w.__solarcrmScrollLockCount === 0) {
+        w.__solarcrmBodyOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+      }
+      w.__solarcrmScrollLockCount += 1;
+    };
+
+    const unlockScroll = () => {
+      const w = window as any;
+      if (typeof w.__solarcrmScrollLockCount !== 'number') {
+        w.__solarcrmScrollLockCount = 0;
+      }
+      w.__solarcrmScrollLockCount = Math.max(0, w.__solarcrmScrollLockCount - 1);
+      if (w.__solarcrmScrollLockCount === 0) {
+        document.body.style.overflow = w.__solarcrmBodyOverflow || '';
+      }
+    };
+
+    if (isOpen) lockScroll();
     return () => {
-      document.body.style.overflow = 'unset';
+      if (isOpen) unlockScroll();
     };
   }, [isOpen]);
 
@@ -31,7 +50,7 @@ export function SlideOver({ isOpen, onClose, title, children }: SlideOverProps) 
           onClick={onClose}
         />
         <div className="pointer-events-none fixed inset-0 sm:inset-y-0 sm:right-0 sm:max-w-full flex sm:pl-10">
-          <div className="pointer-events-auto w-full sm:w-screen sm:max-w-md transform transition-transform duration-300 ease-in-out">
+          <div className="pointer-events-auto w-full sm:w-screen sm:max-w-md lg:max-w-2xl transform transition-transform duration-300 ease-in-out">
             <div className="flex h-full flex-col overflow-y-auto bg-white shadow-xl rounded-t-lg sm:rounded-none">
               <div className="px-4 py-4 sm:py-6 sm:px-6 bg-gray-50 border-b border-gray-200 flex-shrink-0">
                 <div className="flex items-start justify-between gap-3">

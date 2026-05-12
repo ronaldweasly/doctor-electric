@@ -3,6 +3,7 @@
 // =============================================================================
 
 import { Request, Response, NextFunction } from 'express';
+import * as Sentry from "@sentry/node";
 
 /**
  * 404 handler for unknown API routes
@@ -18,6 +19,7 @@ export function notFoundHandler(req: Request, res: Response): void {
  * Global error handler
  * WHY: Catches all unhandled errors and returns consistent JSON responses.
  * In production, we never leak stack traces to the client.
+ * Sends errors to Sentry for monitoring.
  */
 export function errorHandler(err: any, req: Request, res: Response, _next: NextFunction): void {
   // Log the full error server-side
@@ -28,6 +30,22 @@ export function errorHandler(err: any, req: Request, res: Response, _next: NextF
     method: req.method,
     ip: req.headers['cf-connecting-ip'] || req.ip,
   });
+
+  // Capture error in Sentry with additional context
+  if (process.env.SENTRY_DSN) {
+    Sentry.captureException(err, {
+      contexts: {
+        http: {
+          method: req.method,
+          url: req.originalUrl,
+          status_code: err.statusCode || err.status || 500,
+        },
+      },
+      tags: {
+        type: 'unhandled_error',
+      },
+    });
+  }
 
   const statusCode = err.statusCode || err.status || 500;
 

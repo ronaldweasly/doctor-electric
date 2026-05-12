@@ -1,0 +1,35 @@
+export interface ProposalData {
+  clientName: string;
+  clientPhone: string;
+  clientAddress: string;
+  roofType: string;
+  systemSizeKw: number;
+  panelCount: number;
+  panelWattage: number;
+  inverterType: string;
+  inverterBrand: string;
+  mountingStructure: string;
+  batteryBackup: boolean;
+  batteryCapacityKwh?: number;
+  subsidyEligible: boolean;
+  pmSuryaGharSubsidyAmount?: number;
+  systemCostBeforeSubsidy: number;
+  subsidyDeduction: number;
+  finalCostToCustomer: number;
+  gstPercent: number;
+  gstAmount: number;
+  estimatedMonthlyGeneration: number;
+  estimatedAnnualSavings: number;
+  paybackPeriodYears: number;
+  roiPercent: number;
+  validityDays: number;
+  proposalDate: string;
+  preparedBy: string;
+  companyName: string;
+  companyPhone: string;
+  companyEmail: string;
+  warrantyYearsPanel: number;
+  warrantyYearsInverter: number;
+  warrantyYearsStructure: number;
+  notes?: string;
+}

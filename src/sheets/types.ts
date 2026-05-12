@@ -1,4 +1,4 @@
-export type Role = 'Admin' | 'Sales Team' | 'Engineer' | 'Accountant';
+export type Role = 'Admin' | 'Sales Team' | 'Engineer' | 'Accountant' | 'Manager';
 export type WorkflowStage = 'Lead' | 'Survey Scheduled' | 'Survey Done' | 'Quotation Sent' | 'Quotation Approved' | 'Installation Started' | 'Installation Completed' | 'Subsidy Applied' | 'Subsidy Received' | 'Project Closed';
 export type SubsidyStatus = 'Applied' | 'Under Review' | 'Approved' | 'Received';
 

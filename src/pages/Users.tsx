@@ -12,8 +12,10 @@ import { Modal } from '../ui/Modal';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
+import { useRoleAccess } from '../hooks/useRoleAccess';
 import BackupManager from './BackupManager';
 import ActivityViewer from '../components/ActivityViewer';
+import { Lock, AlertCircle } from 'lucide-react';
 
 interface UserFormData {
   Email: string;
@@ -28,8 +30,27 @@ export default function UsersPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
   const { user } = useAuth();
+  const { canManageUsers, canCreateUsers, canEditUserRole } = useRoleAccess();
   
   const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm<UserFormData>();
+
+  // Restrict access - if user can't manage users, show access denied
+  if (!canManageUsers()) {
+    return (
+      <div className="flex flex-col items-center justify-center h-96">
+        <div className="text-center space-y-4">
+          <div className="p-4 bg-amber-50 rounded-lg w-fit mx-auto">
+            <AlertCircle className="w-8 h-8 text-amber-600" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Access Restricted</h2>
+            <p className="text-gray-600">You don't have permission to manage users. Only Admins can access this page.</p>
+          </div>
+          <Button onClick={() => window.location.href = '/dashboard'} variant="ghost">Return to Dashboard</Button>
+        </div>
+      </div>
+    );
+  }
 
   const loadUsers = async () => {
     try {
@@ -86,7 +107,14 @@ export default function UsersPage() {
     <div className="space-y-4 md:space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h1 className="text-xl md:text-2xl font-bold text-gray-900 tracking-tight">System Users</h1>
-        <Button onClick={openAdd} className="w-full sm:w-auto">+ Add User</Button>
+        {canCreateUsers() ? (
+          <Button onClick={openAdd} className="w-full sm:w-auto">+ Add User</Button>
+        ) : (
+          <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs font-medium text-amber-700">
+            <Lock className="w-3.5 h-3.5" />
+            Can't add users (Admin only)
+          </div>
+        )}
       </div>
 
       <Card>
@@ -195,8 +223,10 @@ export default function UsersPage() {
           <Select 
             label="Role" 
             {...register('Role')} 
+            disabled={!canEditUserRole()}
             options={[
               { label: 'Admin', value: 'Admin' },
+              { label: 'Manager', value: 'Manager' },
               { label: 'Sales Team', value: 'Sales Team' },
               { label: 'Engineer', value: 'Engineer' },
               { label: 'Accountant', value: 'Accountant' },

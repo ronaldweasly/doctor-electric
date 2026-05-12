@@ -7,6 +7,7 @@
 // - Rate limiting
 // - Compression
 // - Structured logging
+// - Sentry error monitoring
 // - Graceful shutdown
 // =============================================================================
 
@@ -16,6 +17,8 @@ import cors from 'cors';
 import compression from 'compression';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
+import * as Sentry from "@sentry/node";
+import { nodeProfilingIntegration } from "@sentry/profiling-node";
 
 import { authRouter } from './routes/auth.js';
 import { clientsRouter } from './routes/clients.js';
@@ -23,10 +26,40 @@ import { uploadsRouter } from './routes/uploads.js';
 import { healthRouter } from './routes/health.js';
 import { errorHandler, notFoundHandler } from './middleware/errors.js';
 import { authenticate } from './middleware/auth.js';
+import { tracingMiddleware } from './middleware/tracing.js';
 import { pool, testConnection } from './db/pool.js';
+
+// Initialize Sentry for error monitoring and performance tracking
+const SENTRY_DSN = process.env.SENTRY_DSN;
+if (SENTRY_DSN) {
+  Sentry.init({
+    dsn: SENTRY_DSN,
+    environment: process.env.NODE_ENV || 'development',
+    integrations: [
+      new Sentry.Integrations.Http({ tracing: true }),
+      new Sentry.Integrations.Express({
+        request: true,
+        serverName: true,
+        transaction: true,
+      }),
+      nodeProfilingIntegration(),
+    ],
+    // Set sample rate for errors
+    tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
+    profilesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
+  });
+} else if (process.env.NODE_ENV === 'production') {
+  console.warn('⚠️  Sentry DSN not configured. Error monitoring disabled.');
+}
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '4000', 10);
+
+// Sentry request handler - attach trace data to requests
+if (SENTRY_DSN) {
+  app.use(Sentry.Handlers.requestHandler());
+  app.use(Sentry.Handlers.tracingHandler());
+}
 
 // =============================================================================
 // SECURITY MIDDLEWARE
@@ -84,6 +117,9 @@ app.use('/api/auth/login', authLimiter);
 // GENERAL MIDDLEWARE
 // =============================================================================
 
+// Request tracing: Add X-Request-ID headers for debugging
+app.use(tracingMiddleware);
+
 // Parse JSON bodies (limit to 10MB for file metadata)
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -118,6 +154,11 @@ app.use('/api/uploads', authenticate, uploadsRouter);
 
 // 404 handler for unknown API routes
 app.use('/api/*', notFoundHandler);
+
+// Sentry error handler - must be last, before custom error handler
+if (SENTRY_DSN) {
+  app.use(Sentry.Handlers.errorHandler());
+}
 
 // Global error handler
 app.use(errorHandler);

@@ -11,7 +11,15 @@ import { authenticate } from '../middleware/auth.js';
 
 export const authRouter = Router();
 
-const JWT_SECRET = process.env.JWT_SECRET || 'INSECURE_DEFAULT_CHANGE_ME';
+const JWT_SECRET = (() => {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    console.error('❌ FATAL: JWT_SECRET environment variable is not set');
+    console.error('   Set JWT_SECRET in .env before starting the server');
+    process.exit(1);
+  }
+  return secret;
+})();
 const SESSION_EXPIRY = process.env.SESSION_EXPIRY || '7d';
 const BCRYPT_ROUNDS = parseInt(process.env.BCRYPT_ROUNDS || '12', 10);
 
@@ -75,8 +83,19 @@ authRouter.post('/login', async (req: Request, res: Response) => {
       ]
     );
 
+    // Set token in HTTPOnly cookie (secure, not accessible to JavaScript)
+    const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
+    res.cookie('auth_token', token, {
+      httpOnly: true, // Not accessible to JavaScript (XSS protection)
+      secure: process.env.NODE_ENV === 'production', // Only send over HTTPS in production
+      sameSite: 'strict' as const, // CSRF protection
+      maxAge: maxAge, // 7 days
+      path: '/',
+    });
+
+    // Return user info and token (legacy support - frontend should rely on cookie)
     res.json({
-      token,
+      token, // Keep for backwards compatibility
       user: {
         id: user.id,
         email: user.email,
@@ -97,6 +116,14 @@ authRouter.post('/login', async (req: Request, res: Response) => {
 // ─── GET CURRENT USER ───────────────────────────────────────────────────────
 authRouter.get('/me', authenticate, (req: Request, res: Response) => {
   res.json({ user: req.user });
+});
+
+// ─── LOGOUT ─────────────────────────────────────────────────────────────────
+authRouter.post('/logout', (req: Request, res: Response) => {
+  // Clear the HTTPOnly auth token cookie
+  res.clearCookie('auth_token', { path: '/' });
+  
+  res.json({ message: 'Logged out successfully' });
 });
 
 // ─── REGISTER (Admin only) ─────────────────────────────────────────────────

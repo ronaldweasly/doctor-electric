@@ -5,6 +5,10 @@ import './index.css';
 import { AuthProvider } from './contexts/AuthContext';
 import { BrowserRouter } from 'react-router-dom';
 import { Toaster } from 'sonner';
+import { initializeRequestTracing } from './utils/request-tracing';
+
+// Initialize request tracing for debugging
+initializeRequestTracing();
 
 // Note: Auto-backup is initialized in AuthContext after successful login
 // to avoid backing up unauthenticated/mock state on every page load.

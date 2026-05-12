@@ -16,26 +16,55 @@ export default function AuthCallback() {
   const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
-    // Give Supabase a moment to exchange the code / parse the hash.
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        if (event === 'SIGNED_IN' && session) {
-          // AuthContext listener will load the user role;
-          // redirect to dashboard after a brief pause.
-          setTimeout(() => navigate('/dashboard', { replace: true }), 500);
-        } else if (event === 'SIGNED_OUT' || (!session && event !== 'INITIAL_SESSION')) {
-          setStatus('error');
-          setErrorMsg('Authentication failed. Please try again.');
-        }
-      }
-    );
+    let mounted = true;
 
-    // Safety net: if nothing happens in 10 s, redirect to login.
-    const timeout = setTimeout(() => {
-      navigate('/login', { replace: true });
-    }, 10_000);
+    const goToDashboard = () => {
+      if (!mounted) return;
+      setTimeout(() => navigate('/dashboard', { replace: true }), 300);
+    };
+
+    const failAuth = (message: string) => {
+      if (!mounted) return;
+      setStatus('error');
+      setErrorMsg(message);
+    };
+
+    // Immediately check for an already-established session first.
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (data.session?.user) {
+          goToDashboard();
+        }
+      })
+      .catch(() => {
+        // noop: fallback listener + timeout handle failures
+      });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        goToDashboard();
+        return;
+      }
+
+      // Explicit sign-out from provider flow should surface as an auth failure.
+      if (event === 'SIGNED_OUT') {
+        failAuth('Authentication failed. Please try again.');
+      }
+    });
+
+    // Safety net: poll briefly for session before failing hard.
+    const timeout = setTimeout(async () => {
+      const { data } = await supabase.auth.getSession().catch(() => ({ data: { session: null } }));
+      if (data.session?.user) {
+        goToDashboard();
+      } else {
+        failAuth('Authentication timed out. Please sign in again.');
+      }
+    }, 8000);
 
     return () => {
+      mounted = false;
       subscription.unsubscribe();
       clearTimeout(timeout);
     };

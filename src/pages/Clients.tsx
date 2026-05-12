@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getSheetData, appendRow } from '../sheets/api';
+import { getSheetData, appendRow, deleteClientCompletely } from '../sheets/api';
 import { SHEET_NAMES } from '../sheets/config';
 import { ClientRow, WorkflowStatusRow, UserRow } from '../sheets/types';
 import { Card, CardContent } from '../ui/Card';
@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
 import { useAuth } from '../contexts/AuthContext';
 import { uploadFileToStorage } from '../sheets/supabase';
+import { Trash2 } from 'lucide-react';
 
 export default function ClientsPage() {
   const [clients, setClients] = useState<any[]>([]);
@@ -22,6 +23,7 @@ export default function ClientsPage() {
   const [isSlideOpen, setIsSlideOpen] = useState(false);
   const [salesUsers, setSalesUsers] = useState<{label: string, value: string}[]>([]);
   const [search, setSearch] = useState('');
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -81,6 +83,12 @@ export default function ClientsPage() {
     loadData();
   }, []);
 
+  useEffect(() => {
+    if (!pendingDeleteId) return;
+    const timeout = setTimeout(() => setPendingDeleteId(null), 5000);
+    return () => clearTimeout(timeout);
+  }, [pendingDeleteId]);
+
   const onSubmit = async (data: any) => {
     try {
       const clientId = uuidv4().slice(0, 8).toUpperCase();
@@ -123,8 +131,8 @@ export default function ClientsPage() {
       if (data.PaymentTotal || data.PaymentPaid || data.PaymentPending || data.PaymentDue || data.PaymentStatus) {
          await appendRow(SHEET_NAMES.PAYMENTS, [clientId, data.PaymentTotal || '', data.PaymentPaid || '', data.PaymentPending || '', data.PaymentDue || '', data.PaymentStatus || '']);
       }
-      if (data.AadhaarLink || data.ElectricityBillLink) {
-         await appendRow(SHEET_NAMES.DOCUMENTS, [clientId, data.AadhaarLink || '', data.ElectricityBillLink || '', '', '', '']);
+      if (data.AadhaarLink || data.ElectricityBillLink || data.AadhaarNumber || data.BillNumber) {
+         await appendRow(SHEET_NAMES.DOCUMENTS, [clientId, data.AadhaarLink || data.AadhaarNumber || '', data.ElectricityBillLink || data.BillNumber || '', '', '', '']);
       }
 
       toast.success('Client profile created completely!');
@@ -141,6 +149,30 @@ export default function ClientsPage() {
     c.Phone.includes(search) ||
     c.Stage.toLowerCase().includes(search.toLowerCase())
   );
+
+  const handleDeleteClient = async (e: React.MouseEvent, clientId: string, clientName: string) => {
+    e.stopPropagation();
+
+    if (user?.role !== 'Admin') {
+      toast.error('Only Admin can delete clients');
+      return;
+    }
+
+    if (pendingDeleteId !== clientId) {
+      setPendingDeleteId(clientId);
+      toast.warning('Click delete again within 5 seconds to confirm');
+      return;
+    }
+
+    try {
+      await deleteClientCompletely(clientId);
+      toast.success(`Client "${clientName}" deleted successfully`);
+      setPendingDeleteId(null);
+      loadData();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete client');
+    }
+  };
 
   return (
     <div className="space-y-3 sm:space-y-4 md:space-y-6">
@@ -206,6 +238,18 @@ export default function ClientsPage() {
                     <p className="text-slate-600"><span className="font-medium">System:</span> {client['System Size (kW)']}kW</p>
                     <p className="text-slate-500 truncate"><span className="font-medium">Address:</span> {client.Address}</p>
                   </div>
+                  {user?.role === 'Admin' && (
+                    <div className="mt-3">
+                      <Button
+                        variant={pendingDeleteId === client.ID ? 'danger' : 'outline'}
+                        size="sm"
+                        onClick={(e) => handleDeleteClient(e, client.ID, client.Name)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5 mr-1" />
+                        {pendingDeleteId === client.ID ? 'Confirm Delete' : 'Delete'}
+                      </Button>
+                    </div>
+                  )}
                 </div>
               ))
             )}
@@ -266,8 +310,28 @@ export default function ClientsPage() {
                           {client.Stage}
                         </Badge>
                       </td>
-                      <td className="px-4 md:px-6 py-4 text-right font-medium text-blue-700">
-                        Details
+                      <td className="px-4 md:px-6 py-4">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            className="font-medium text-blue-700 hover:text-blue-900"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/clients/${client.ID}`);
+                            }}
+                          >
+                            Details
+                          </button>
+                          {user?.role === 'Admin' && (
+                            <Button
+                              variant={pendingDeleteId === client.ID ? 'danger' : 'outline'}
+                              size="sm"
+                              onClick={(e) => handleDeleteClient(e, client.ID, client.Name)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5 mr-1" />
+                              {pendingDeleteId === client.ID ? 'Confirm Delete' : 'Delete'}
+                            </Button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -334,19 +398,41 @@ export default function ClientsPage() {
 
           <div className="space-y-4 pt-4">
             <h3 className="text-sm font-semibold text-slate-800 uppercase tracking-wider border-b pb-2">2. Initial Documents</h3>
-            <p className="text-xs text-slate-500">Upload documents to generate Google Drive links.</p>
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-slate-700">Aadhaar Photo / PDF</label>
-              <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
-                <input type="file" accept="image/*,.pdf" onChange={(e) => handleFileUpload(e, 'AadhaarLink')} className="text-sm border border-slate-300 p-1.5 rounded-md w-full sm:w-auto" />
-                <Input placeholder="Or paste Drive link" {...register('AadhaarLink')} />
+            <p className="text-xs text-slate-500">Upload documents or enter document numbers.</p>
+            
+            {/* Aadhaar Section */}
+            <div className="space-y-3 border border-slate-200 rounded-lg p-4 bg-slate-50">
+              <label className="block text-sm font-medium text-slate-700">Aadhaar</label>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-medium text-slate-600 block mb-1.5">Upload Photo / PDF</label>
+                  <div className="flex flex-col lg:flex-row gap-2 items-start">
+                    <input type="file" accept="image/*,.pdf" onChange={(e) => handleFileUpload(e, 'AadhaarLink')} className="text-sm border border-slate-300 p-1.5 rounded-md w-full lg:w-auto" />
+                    <Input placeholder="Or paste Drive link" {...register('AadhaarLink')} />
+                  </div>
+                </div>
+                <div className="border-t pt-3">
+                  <label className="text-xs font-medium text-slate-600 block mb-1.5">Or Enter Aadhaar Number</label>
+                  <Input placeholder="XXXX XXXX XXXX" {...register('AadhaarNumber')} maxLength="12" />
+                </div>
               </div>
             </div>
-            <div className="space-y-2">
+
+            {/* Electricity Bill Section */}
+            <div className="space-y-3 border border-slate-200 rounded-lg p-4 bg-slate-50">
               <label className="block text-sm font-medium text-slate-700">Electricity Bill</label>
-              <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
-                <input type="file" accept="image/*,.pdf" onChange={(e) => handleFileUpload(e, 'ElectricityBillLink')} className="text-sm border border-slate-300 p-1.5 rounded-md w-full sm:w-auto" />
-                <Input placeholder="Or paste Drive link" {...register('ElectricityBillLink')} />
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-medium text-slate-600 block mb-1.5">Upload Photo / PDF</label>
+                  <div className="flex flex-col lg:flex-row gap-2 items-start">
+                    <input type="file" accept="image/*,.pdf" onChange={(e) => handleFileUpload(e, 'ElectricityBillLink')} className="text-sm border border-slate-300 p-1.5 rounded-md w-full lg:w-auto" />
+                    <Input placeholder="Or paste Drive link" {...register('ElectricityBillLink')} />
+                  </div>
+                </div>
+                <div className="border-t pt-3">
+                  <label className="text-xs font-medium text-slate-600 block mb-1.5">Or Enter Bill Number</label>
+                  <Input placeholder="Electricity bill number" {...register('BillNumber')} />
+                </div>
               </div>
             </div>
           </div>

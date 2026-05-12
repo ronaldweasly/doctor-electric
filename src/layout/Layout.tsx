@@ -12,11 +12,11 @@ export default function Layout() {
         {/* Desktop sidebar — hidden on mobile */}
         <Sidebar />
 
-        <div className="flex-1 flex flex-col h-full overflow-hidden w-full min-w-0">
+        <div className="flex-1 flex flex-col h-full min-h-0 overflow-hidden w-full min-w-0">
           <Navbar />
 
-          {/* Main scrollable content area */}
-          <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-6 lg:p-8
+          {/* Main scrollable content area — only this scrolls, navbar/sidebar fixed */}
+          <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-6 lg:p-8
                            pb-20 lg:pb-8"> {/* pb-20 = space for bottom nav on mobile */}
             <Outlet />
           </main>

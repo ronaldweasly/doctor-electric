@@ -4,9 +4,10 @@ import { Card, CardContent } from '../ui/Card';
 import { getSheetData } from '../sheets/api';
 import { SHEET_NAMES } from '../sheets/config';
 import { WorkflowStatusRow, ClientRow, SubsidyRow, PaymentRow } from '../sheets/types';
-import { Users, Loader2, Wrench, IndianRupee, FileText, CheckCircle2, X, ArrowRight, TrendingUp, Info } from 'lucide-react';
+import { Users, Loader2, Wrench, IndianRupee, FileText, CheckCircle2, X, ArrowRight, TrendingUp, Info, Lock } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList, PieChart, Pie, Cell, Legend } from 'recharts';
 import { cn } from '../utils/cn';
+import { useDashboardConfig } from '../hooks/useRoleAccess';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#94a3b8'];
 
@@ -16,6 +17,9 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any>(null);
   const detailRef = useRef<HTMLDivElement>(null);
+  
+  // Get role-based dashboard configuration
+  const dashboardConfig = useDashboardConfig();
 
   // SOURCE OF TRUTH: The URL metric param
   const selectedMetric = searchParams.get('metric');
@@ -436,43 +440,59 @@ export default function Dashboard() {
         <div>
           <h2 className="text-xl font-bold text-slate-800">Business Intelligence</h2>
           <p className="text-xs text-slate-500 font-medium mt-1 flex items-center gap-1">
-            <Info className="w-3 h-3" /> Overview of your solar installation pipeline and financials
+            <Info className="w-3 h-3" /> {dashboardConfig.showUserManagement ? 'Overview of your solar installation pipeline and financials' : 'Personalized dashboard for your role'}
           </p>
         </div>
+        {!dashboardConfig.showUserManagement && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-xs font-medium text-blue-700">
+            <Lock className="w-3.5 h-3.5" />
+            Limited Access - Filtered by Role
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
-        <MetricCard title="Total Leads" value={metrics.totalLeads} icon={<Users className="w-5 h-5 sm:w-6 sm:h-6" />} colorWrapper="bg-blue-700 text-white" onClick={() => handleMetricClick('totalLeads')} isActive={selectedMetric === 'totalLeads'} />
-        <MetricCard title="Active Projects" value={metrics.ongoingInstallations} icon={<Wrench className="w-5 h-5 sm:w-6 sm:h-6" />} colorWrapper="bg-indigo-600 text-white" onClick={() => handleMetricClick('ongoingInstallations')} isActive={selectedMetric === 'ongoingInstallations'} />
-        <MetricCard title="Awaiting Payment" value={metrics.pendingPayments} icon={<IndianRupee className="w-5 h-5 sm:w-6 sm:h-6" />} colorWrapper="bg-rose-600 text-white" onClick={() => handleMetricClick('pendingPayments')} isActive={selectedMetric === 'pendingPayments'} />
-        <MetricCard title="Subsidies" value={metrics.subsidiesInProgress} icon={<FileText className="w-5 h-5 sm:w-6 sm:h-6" />} colorWrapper="bg-amber-500 text-white" onClick={() => handleMetricClick('subsidiesInProgress')} isActive={selectedMetric === 'subsidiesInProgress'} />
+        {dashboardConfig.showCampaigns && (
+          <MetricCard title="Total Leads" value={metrics.totalLeads} icon={<Users className="w-5 h-5 sm:w-6 sm:h-6" />} colorWrapper="bg-blue-700 text-white" onClick={() => handleMetricClick('totalLeads')} isActive={selectedMetric === 'totalLeads'} />
+        )}
+        {dashboardConfig.showInstallations && (
+          <MetricCard title="Active Projects" value={metrics.ongoingInstallations} icon={<Wrench className="w-5 h-5 sm:w-6 sm:h-6" />} colorWrapper="bg-indigo-600 text-white" onClick={() => handleMetricClick('ongoingInstallations')} isActive={selectedMetric === 'ongoingInstallations'} />
+        )}
+        {dashboardConfig.showFinancials && (
+          <>
+            <MetricCard title="Awaiting Payment" value={metrics.pendingPayments} icon={<IndianRupee className="w-5 h-5 sm:w-6 sm:h-6" />} colorWrapper="bg-rose-600 text-white" onClick={() => handleMetricClick('pendingPayments')} isActive={selectedMetric === 'pendingPayments'} />
+            <MetricCard title="Subsidies" value={metrics.subsidiesInProgress} icon={<FileText className="w-5 h-5 sm:w-6 sm:h-6" />} colorWrapper="bg-amber-500 text-white" onClick={() => handleMetricClick('subsidiesInProgress')} isActive={selectedMetric === 'subsidiesInProgress'} />
+          </>
+        )}
         <MetricCard title="Completed" value={metrics.completedProjects} icon={<CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6" />} colorWrapper="bg-emerald-600 text-white" onClick={() => handleMetricClick('completedProjects')} isActive={selectedMetric === 'completedProjects'} />
       </div>
 
       {renderDetailSection()}
 
       <div className="grid grid-cols-1 gap-4 md:gap-8 lg:grid-cols-3">
-        <Card className="col-span-1 lg:col-span-2 shadow-sm border-slate-100">
-          <div className="px-6 py-5 border-b border-slate-50 flex justify-between items-center">
-            <h3 className="font-bold text-slate-800">Pipeline Snapshot</h3>
-            <span className="text-[10px] font-bold bg-blue-50 text-blue-700 px-3 py-1 rounded-full uppercase">Analytics</span>
-          </div>
-          <CardContent className="p-6">
-            <div className="h-80 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={pipelineData} layout="vertical" margin={{ top: 5, right: 30, left: 100, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
-                  <XAxis type="number" stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
-                  <YAxis dataKey="name" type="category" stroke="#64748b" tick={{fontSize: 10, fontWeight: 500}} width={90} tickLine={false} axisLine={false} />
-                  <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} />
-                  <Bar dataKey="count" fill="#3b82f6" radius={[0, 6, 6, 0]} barSize={22}>
-                    <LabelList dataKey="count" position="right" fill="#3b82f6" fontSize={11} fontWeight={700} />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+        {dashboardConfig.showCampaigns && (
+          <Card className="col-span-1 lg:col-span-2 shadow-sm border-slate-100">
+            <div className="px-6 py-5 border-b border-slate-50 flex justify-between items-center">
+              <h3 className="font-bold text-slate-800">Pipeline Snapshot</h3>
+              <span className="text-[10px] font-bold bg-blue-50 text-blue-700 px-3 py-1 rounded-full uppercase">Analytics</span>
             </div>
-          </CardContent>
-        </Card>
+            <CardContent className="p-6">
+              <div className="h-80 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={pipelineData} layout="vertical" margin={{ top: 5, right: 30, left: 100, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                    <XAxis type="number" stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
+                    <YAxis dataKey="name" type="category" stroke="#64748b" tick={{fontSize: 10, fontWeight: 500}} width={90} tickLine={false} axisLine={false} />
+                    <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} />
+                    <Bar dataKey="count" fill="#3b82f6" radius={[0, 6, 6, 0]} barSize={22}>
+                      <LabelList dataKey="count" position="right" fill="#3b82f6" fontSize={11} fontWeight={700} />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <Card className="col-span-1 shadow-sm border-slate-100">
           <div className="px-6 py-5 border-b border-slate-50 flex justify-between items-center">

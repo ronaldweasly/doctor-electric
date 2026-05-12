@@ -22,7 +22,15 @@ declare global {
   }
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || 'INSECURE_DEFAULT_CHANGE_ME';
+const JWT_SECRET = (() => {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    console.error('❌ FATAL: JWT_SECRET environment variable is not set');
+    console.error('   Set JWT_SECRET in .env before starting the server');
+    process.exit(1);
+  }
+  return secret;
+})();
 
 /**
  * Verify JWT token and attach user to request.

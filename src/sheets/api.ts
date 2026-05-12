@@ -54,31 +54,11 @@ const ORDER_MAP: Record<string, { column: string; ascending: boolean }> = {
 
 export function setAccessToken(token: string) {
   // Not needed — Supabase client manages its own session token
-  console.debug('🔐 Supabase handles its own access token');
-}
 
-const LOCAL_BACKUP_PREFIX = 'solarcrm_backup_';
-
-function saveLocalBackup(sheetName: string, data: any[]) {
-  try {
-    localStorage.setItem(`${LOCAL_BACKUP_PREFIX}${sheetName}`, JSON.stringify(data));
-  } catch (e) {
-    console.warn('Failed to save local backup (storage might be full)', e);
-  }
-}
-
-function getLocalBackup(sheetName: string): any[] | null {
-  try {
-    const data = localStorage.getItem(`${LOCAL_BACKUP_PREFIX}${sheetName}`);
-    return data ? JSON.parse(data) : null;
-  } catch (e) {
-    return null;
-  }
 }
 
 /**
  * Fetch all rows from a Supabase table, mapped back to Sheet-style headers.
- * Includes automatic local backup and offline fallback.
  */
 export async function getSheetData<T = any>(sheetName: string): Promise<T[]> {
   if (USE_MOCK) {
@@ -98,14 +78,6 @@ export async function getSheetData<T = any>(sheetName: string): Promise<T[]> {
 
   if (error) {
     console.error(`Supabase Select Error (${tableName}):`, error);
-    
-    // OFFLINE FALLBACK: If Supabase fails, try to load from the automatic local backup
-    const backup = getLocalBackup(sheetName);
-    if (backup) {
-      console.warn(`⚠️ Using local backup for ${sheetName} due to network/DB error.`);
-      return backup;
-    }
-    
     throw new Error(`Failed to fetch ${sheetName}: ${error.message}`);
   }
 
@@ -130,9 +102,6 @@ export async function getSheetData<T = any>(sheetName: string): Promise<T[]> {
     });
     return item;
   });
-
-  // Automatically save the fresh data to the local backup
-  saveLocalBackup(sheetName, mappedData);
   
   return mappedData;
 }
@@ -305,4 +274,60 @@ export async function appendRowProtected(
   }
 
   return appendRow(sheetName, values);
+}
+
+/**
+ * Delete a client and all related records across sheets/tables.
+ */
+export async function deleteClientCompletely(clientId: string) {
+  if (!clientId) throw new Error('Client ID is required');
+
+  if (USE_MOCK) {
+    const deleteByClientIdSheets = [
+      SHEET_NAMES.WORKFLOW_STATUS,
+      SHEET_NAMES.SURVEYS,
+      SHEET_NAMES.QUOTATIONS,
+      SHEET_NAMES.INSTALLATIONS,
+      SHEET_NAMES.SUBSIDIES,
+      SHEET_NAMES.PAYMENTS,
+      SHEET_NAMES.DOCUMENTS,
+    ];
+
+    deleteByClientIdSheets.forEach((sheet) => {
+      if (!MOCK_DB[sheet]) return;
+      MOCK_DB[sheet] = MOCK_DB[sheet].filter((row: any) => row['Client ID'] !== clientId);
+    });
+
+    if (MOCK_DB[SHEET_NAMES.CLIENTS]) {
+      MOCK_DB[SHEET_NAMES.CLIENTS] = MOCK_DB[SHEET_NAMES.CLIENTS].filter((row: any) => row.ID !== clientId);
+    }
+
+    return { status: 200 };
+  }
+
+  const childTables = [
+    'workflow_status',
+    'surveys',
+    'quotations',
+    'installations',
+    'subsidies',
+    'payments',
+    'documents',
+  ];
+
+  for (const tableName of childTables) {
+    const { error } = await supabase.from(tableName).delete().eq('client_id', clientId);
+    if (error) {
+      console.error(`Supabase Delete Error (${tableName}):`, error);
+      throw new Error(`Failed to delete related records from ${tableName}: ${error.message}`);
+    }
+  }
+
+  const { error } = await supabase.from('clients').delete().eq('id', clientId);
+  if (error) {
+    console.error('Supabase Delete Error (clients):', error);
+    throw new Error(`Failed to delete client: ${error.message}`);
+  }
+
+  return { status: 200 };
 }

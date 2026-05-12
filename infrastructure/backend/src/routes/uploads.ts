@@ -19,6 +19,7 @@ import { Router, Request, Response } from 'express';
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { v4 as uuidv4 } from 'uuid';
+import { authorize } from '../middleware/auth.js';
 
 export const uploadsRouter = Router();
 
@@ -45,8 +46,8 @@ const ALLOWED_TYPES: Record<string, number> = {
 };
 
 // ─── GET UPLOAD URL (Pre-signed) ────────────────────────────────────────────
-// Client requests a pre-signed URL, then uploads directly to R2
-uploadsRouter.post('/presign', async (req: Request, res: Response) => {
+// All authenticated users can request upload URLs
+uploadsRouter.post('/presign', authorize('Admin', 'Sales Team', 'Engineer', 'Accountant'), async (req: Request, res: Response) => {
   try {
     const { filename, contentType, folder } = req.body;
 
@@ -93,7 +94,8 @@ uploadsRouter.post('/presign', async (req: Request, res: Response) => {
 });
 
 // ─── GET DOWNLOAD URL (Pre-signed, for private files) ───────────────────────
-uploadsRouter.get('/download/:folder/:fileId', async (req: Request, res: Response) => {
+// All authenticated users can download
+uploadsRouter.get('/download/:folder/:fileId', authorize('Admin', 'Sales Team', 'Engineer', 'Accountant'), async (req: Request, res: Response) => {
   try {
     const fileKey = `${req.params.folder}/${req.params.fileId}`;
 
@@ -112,7 +114,8 @@ uploadsRouter.get('/download/:folder/:fileId', async (req: Request, res: Respons
 });
 
 // ─── DELETE FILE ────────────────────────────────────────────────────────────
-uploadsRouter.delete('/:folder/:fileId', async (req: Request, res: Response) => {
+// Only Admin and Engineer can delete files
+uploadsRouter.delete('/:folder/:fileId', authorize('Admin', 'Engineer'), async (req: Request, res: Response) => {
   try {
     const fileKey = `${req.params.folder}/${req.params.fileId}`;
 

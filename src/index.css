@@ -38,6 +38,10 @@ button, a, [role="button"] {
 /* ─── Mobile scroll improvements ──────────────────────────────────────── */
 .overflow-y-auto, .overflow-x-auto {
   -webkit-overflow-scrolling: touch;
+}
+
+/* Contain scroll only in modal/popover overlays to prevent background scroll. */
+.modal-scroll, .popover-scroll {
   overscroll-behavior: contain;
 }
 

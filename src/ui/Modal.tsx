@@ -12,13 +12,32 @@ interface ModalProps {
 
 export function Modal({ isOpen, onClose, title, children, className }: ModalProps) {
   useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
+    const lockScroll = () => {
+      const w = window as any;
+      if (typeof w.__solarcrmScrollLockCount !== 'number') {
+        w.__solarcrmScrollLockCount = 0;
+      }
+      if (w.__solarcrmScrollLockCount === 0) {
+        w.__solarcrmBodyOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+      }
+      w.__solarcrmScrollLockCount += 1;
+    };
+
+    const unlockScroll = () => {
+      const w = window as any;
+      if (typeof w.__solarcrmScrollLockCount !== 'number') {
+        w.__solarcrmScrollLockCount = 0;
+      }
+      w.__solarcrmScrollLockCount = Math.max(0, w.__solarcrmScrollLockCount - 1);
+      if (w.__solarcrmScrollLockCount === 0) {
+        document.body.style.overflow = w.__solarcrmBodyOverflow || '';
+      }
+    };
+
+    if (isOpen) lockScroll();
     return () => {
-      document.body.style.overflow = 'unset';
+      if (isOpen) unlockScroll();
     };
   }, [isOpen]);
 

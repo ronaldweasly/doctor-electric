@@ -8,16 +8,37 @@
 import { Router, Request, Response } from 'express';
 import { query } from '../db/pool.js';
 import { authorize } from '../middleware/auth.js';
+import { withTransaction } from '../db/transaction.js';
 
 export const clientsRouter = Router();
 
 // ─── GET ALL CLIENTS ────────────────────────────────────────────────────────
 clientsRouter.get('/', async (req: Request, res: Response) => {
   try {
+    // Parse pagination parameters
+    const limit = Math.min(parseInt(req.query.limit as string) || 20, 100); // Max 100 per page
+    const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
+
+    // Get total count
+    const countResult = await query('SELECT COUNT(*) as total FROM clients');
+    const total = parseInt(countResult.rows[0].total, 10);
+
+    // Get paginated data
     const result = await query(
-      'SELECT * FROM clients ORDER BY created_date DESC'
+      'SELECT * FROM clients ORDER BY created_date DESC LIMIT $1 OFFSET $2',
+      [limit, offset]
     );
-    res.json(result.rows);
+
+    res.json({
+      data: result.rows,
+      pagination: {
+        total,
+        limit,
+        offset,
+        hasMore: offset + limit < total,
+        pages: Math.ceil(total / limit),
+      },
+    });
   } catch (err) {
     console.error('Error fetching clients:', err);
     res.status(500).json({ error: 'Failed to fetch clients' });
@@ -63,7 +84,8 @@ clientsRouter.get('/:id', async (req: Request, res: Response) => {
 });
 
 // ─── CREATE CLIENT ──────────────────────────────────────────────────────────
-clientsRouter.post('/', async (req: Request, res: Response) => {
+// Only Admin and Sales Team can create clients
+clientsRouter.post('/', authorize('Admin', 'Sales Team'), async (req: Request, res: Response) => {
   try {
     const { id, name, phone, address, roof_type, system_size_kw, assigned_to } = req.body;
 
@@ -95,7 +117,8 @@ clientsRouter.post('/', async (req: Request, res: Response) => {
 });
 
 // ─── UPDATE CLIENT ──────────────────────────────────────────────────────────
-clientsRouter.put('/:id', async (req: Request, res: Response) => {
+// Only Admin and Sales Team can update clients
+clientsRouter.put('/:id', authorize('Admin', 'Sales Team'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { name, phone, address, roof_type, system_size_kw, assigned_to } = req.body;
@@ -130,7 +153,8 @@ clientsRouter.put('/:id', async (req: Request, res: Response) => {
 });
 
 // ─── UPDATE WORKFLOW STATUS ─────────────────────────────────────────────────
-clientsRouter.put('/:id/workflow', async (req: Request, res: Response) => {
+// Only Admin, Engineer, and Sales Team can update workflow
+clientsRouter.put('/:id/workflow', authorize('Admin', 'Engineer', 'Sales Team'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { stage } = req.body;
@@ -157,36 +181,50 @@ clientsRouter.put('/:id/workflow', async (req: Request, res: Response) => {
 });
 
 // ─── UPSERT RELATED DATA ───────────────────────────────────────────────────
-// Generic upsert for surveys, quotations, installations, subsidies, payments, documents
-const UPSERT_TABLES = ['surveys', 'quotations', 'installations', 'subsidies', 'payments', 'documents'] as const;
+// Surveys & Installations: Admin, Engineer only
+// Quotations: Admin, Engineer only
+// Subsidies & Payments: Admin, Accountant only
+// Documents: Admin, Engineer only
+const UPSERT_CONFIGS = {
+  surveys: { roles: ['Admin', 'Engineer'] },
+  quotations: { roles: ['Admin', 'Engineer'] },
+  installations: { roles: ['Admin', 'Engineer'] },
+  subsidies: { roles: ['Admin', 'Accountant'] },
+  payments: { roles: ['Admin', 'Accountant'] },
+  documents: { roles: ['Admin', 'Engineer'] },
+} as const;
 
-for (const table of UPSERT_TABLES) {
-  clientsRouter.put(`/:id/${table}`, async (req: Request, res: Response) => {
-    try {
-      const { id } = req.params;
-      const data = req.body;
+for (const [table, config] of Object.entries(UPSERT_CONFIGS)) {
+  clientsRouter.put(
+    `/:id/${table}`,
+    authorize(...(config.roles as string[])),
+    async (req: Request, res: Response) => {
+      try {
+        const { id } = req.params;
+        const data = req.body;
 
-      // Build dynamic upsert query
-      const columns = Object.keys(data).filter(k => k !== 'client_id' && k !== 'id');
-      const values = columns.map(c => data[c]);
+        // Build dynamic upsert query
+        const columns = Object.keys(data).filter(k => k !== 'client_id' && k !== 'id');
+        const values = columns.map(c => data[c]);
 
-      const setClauses = columns.map((c, i) => `${c} = $${i + 2}`).join(', ');
-      const insertCols = ['client_id', ...columns].join(', ');
-      const insertVals = ['$1', ...columns.map((_, i) => `$${i + 2}`)].join(', ');
+        const setClauses = columns.map((c, i) => `${c} = $${i + 2}`).join(', ');
+        const insertCols = ['client_id', ...columns].join(', ');
+        const insertVals = ['$1', ...columns.map((_, i) => `$${i + 2}`)].join(', ');
 
-      const result = await query(
-        `INSERT INTO ${table} (${insertCols}) VALUES (${insertVals})
-         ON CONFLICT (client_id) DO UPDATE SET ${setClauses}
-         RETURNING *`,
-        [id, ...values]
-      );
+        const result = await query(
+          `INSERT INTO ${table} (${insertCols}) VALUES (${insertVals})
+           ON CONFLICT (client_id) DO UPDATE SET ${setClauses}
+           RETURNING *`,
+          [id, ...values]
+        );
 
-      res.json(result.rows[0]);
-    } catch (err) {
-      console.error(`Error upserting ${table}:`, err);
-      res.status(500).json({ error: `Failed to update ${table}` });
+        res.json(result.rows[0]);
+      } catch (err) {
+        console.error(`Error upserting ${table}:`, err);
+        res.status(500).json({ error: `Failed to update ${table}` });
+      }
     }
-  });
+  );
 }
 
 // ─── DASHBOARD STATS ────────────────────────────────────────────────────────
@@ -225,22 +263,44 @@ clientsRouter.delete('/:id', authorize('Admin'), async (req: Request, res: Respo
   try {
     const { id } = req.params;
 
-    // Cascading delete handled by foreign keys
-    const result = await query('DELETE FROM clients WHERE id = $1 RETURNING id', [id]);
+    // Use transaction to ensure consistency across related deletions
+    await withTransaction(async (txQuery) => {
+      // Check if client exists
+      const clientCheck = await txQuery('SELECT id FROM clients WHERE id = $1', [id]);
+      if (clientCheck.rows.length === 0) {
+        throw new Error('Client not found');
+      }
 
-    if (result.rows.length === 0) {
-      res.status(404).json({ error: 'Client not found' });
-      return;
-    }
+      // Delete in order of foreign key dependencies
+      // (Relying on database constraints, but being explicit is safer)
+      await txQuery('DELETE FROM documents WHERE client_id = $1', [id]);
+      await txQuery('DELETE FROM payments WHERE client_id = $1', [id]);
+      await txQuery('DELETE FROM subsidies WHERE client_id = $1', [id]);
+      await txQuery('DELETE FROM installations WHERE client_id = $1', [id]);
+      await txQuery('DELETE FROM quotations WHERE client_id = $1', [id]);
+      await txQuery('DELETE FROM surveys WHERE client_id = $1', [id]);
+      await txQuery('DELETE FROM workflow_status WHERE client_id = $1', [id]);
+      
+      // Finally delete the client
+      await txQuery('DELETE FROM clients WHERE id = $1', [id]);
 
+      // Log the deletion (this stays outside transaction for audit trail)
+    });
+
+    // Log after transaction succeeds
     await query(
-      'INSERT INTO activity_log (user_email, action, entity_type, entity_id) VALUES ($1, $2, $3, $4)',
-      [req.user?.email, 'DELETE', 'client', id]
+      'INSERT INTO activity_log (user_email, action, entity_type, entity_id, details) VALUES ($1, $2, $3, $4, $5)',
+      [req.user?.email, 'DELETE', 'client', id, JSON.stringify({ cascading: true })]
     );
 
-    res.json({ message: 'Client deleted', id });
-  } catch (err) {
+    res.json({ message: 'Client deleted successfully', id });
+  } catch (err: any) {
     console.error('Error deleting client:', err);
-    res.status(500).json({ error: 'Failed to delete client' });
+    
+    if (err.message === 'Client not found') {
+      res.status(404).json({ error: 'Client not found' });
+    } else {
+      res.status(500).json({ error: 'Failed to delete client. Transaction rolled back.' });
+    }
   }
 });
