@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getSheetData } from '../sheets/api';
 import { SHEET_NAMES } from '../sheets/config';
 import { ClientRow, WorkflowStatusRow, UserRow } from '../sheets/types';
@@ -21,6 +21,7 @@ export default function ClientsPage() {
   
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const loadData = async () => {
     try {
@@ -59,6 +60,12 @@ export default function ClientsPage() {
     loadData();
   }, []);
 
+  // Open slide if ?add=1 present in URL
+  useEffect(() => {
+    if (searchParams.get('add')) setIsSlideOpen(true);
+    else setIsSlideOpen(false);
+  }, [searchParams]);
+
   const filteredClients = clients.filter(c => 
     c.Name.toLowerCase().includes(search.toLowerCase()) || 
     c.Phone.includes(search) ||
@@ -80,7 +87,7 @@ export default function ClientsPage() {
                        text-sm placeholder-slate-400 focus:outline-none focus:ring-2
                        focus:ring-blue-500 focus:border-transparent"
           />
-          <Button onClick={() => setIsSlideOpen(true)} className="whitespace-nowrap shrink-0 h-10 sm:h-auto">
+          <Button onClick={() => { setIsSlideOpen(true); setSearchParams({ add: '1' }); }} className="whitespace-nowrap shrink-0 h-10 sm:h-auto">
             <span className="hidden sm:inline">+ Add Client</span>
             <span className="sm:hidden text-lg leading-none">+</span>
           </Button>
@@ -201,7 +208,7 @@ export default function ClientsPage() {
         </CardContent>
       </Card>
 
-      <SlideOver isOpen={isSlideOpen} onClose={() => setIsSlideOpen(false)} title="Add New Client">
+      <SlideOver isOpen={isSlideOpen} onClose={() => { setIsSlideOpen(false); setSearchParams({}); }} title="Add New Client">
         <MultiStepClientForm 
           salesUsers={salesUsers} 
           user={user}

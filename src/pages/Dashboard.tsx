@@ -4,13 +4,17 @@ import { Card, CardContent } from '../ui/Card';
 import { getSheetData } from '../sheets/api';
 import { SHEET_NAMES } from '../sheets/config';
 import { WorkflowStatusRow, ClientRow, SubsidyRow, PaymentRow } from '../sheets/types';
-import { Users, Loader2, Wrench, IndianRupee, FileText, CheckCircle2, X, ArrowRight, TrendingUp, Info } from 'lucide-react';
+import { Users, Loader2, Wrench, IndianRupee, FileText, CheckCircle2, X, ArrowRight, TrendingUp, Info, Calendar, Flag, Zap } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList, PieChart, Pie, Cell, Legend } from 'recharts';
 import { cn } from '../utils/cn';
 
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#94a3b8'];
+// Logo blue palette (used across pipeline charts and stage chips)
+const COLORS = ['#0b5fff', '#0753d1', '#1e3a8a', '#3b82f6', '#60a5fa', '#93c5fd', '#0ea5e9', '#0369a1'];
+
+// (Removed local dummy data - using live data source)
 
 export default function Dashboard() {
+  const [showAnalytics, setShowAnalytics] = useState(false);
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
@@ -240,7 +244,7 @@ export default function Dashboard() {
                               innerRadius="55%" outerRadius="78%"
                               paddingAngle={3} dataKey="value" startAngle={90} endAngle={-270}>
                               {detailChartData.map((_: any, i: number) => (
-                                <Cell key={i} fill={['#6366f1','#10b981'][i % 2]} />
+                                <Cell key={i} fill={['#0b5fff','#60a5fa'][i % 2]} />
                               ))}
                             </Pie>
                             <Tooltip contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.12)', fontSize: 12 }} />
@@ -251,7 +255,7 @@ export default function Dashboard() {
                       <div className="flex flex-wrap justify-center gap-x-4 gap-y-1">
                         {detailChartData.map((d: any, i: number) => (
                           <span key={i} className="flex items-center gap-1.5 text-xs font-semibold text-slate-600">
-                            <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ background: ['#6366f1','#10b981'][i % 2] }} />
+                            <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ background: ['#0b5fff','#60a5fa'][i % 2] }} />
                             {d.name} <span className="font-black text-slate-900">{d.value}</span>
                           </span>
                         ))}
@@ -263,8 +267,8 @@ export default function Dashboard() {
                 {/* ── subsidiesInProgress: horizontal bar — 5 categories ── */}
                 {selectedMetric === 'subsidiesInProgress' && (() => {
                   const subsColors: Record<string,string> = {
-                    'Not Applied': '#94a3b8', 'Applied': '#3b82f6',
-                    'Under Review': '#f59e0b', 'Received': '#10b981', 'Rejected': '#ef4444'
+                    'Not Applied': '#94a3b8', 'Applied': '#0b5fff',
+                    'Under Review': '#60a5fa', 'Received': '#0753d1', 'Rejected': '#ef4444'
                   };
                   const total = detailChartData.reduce((s: number, d: any) => s + d.value, 0) || 1;
                   return (
@@ -325,7 +329,7 @@ export default function Dashboard() {
                         <Tooltip cursor={{ fill: '#f0f9ff' }}
                           contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.12)', fontSize: 12 }}
                           formatter={(v: any) => [`₹${Number(v).toLocaleString('en-IN')}`, '']} />
-                        <Bar dataKey="paid" name="Paid" fill="#10b981" radius={[4,4,0,0]} barSize={10} />
+                        <Bar dataKey="paid" name="Paid" fill={COLORS[0]} radius={[4,4,0,0]} barSize={10} />
                         <Bar dataKey="pending" name="Pending" fill="#ef4444" radius={[4,4,0,0]} barSize={10} />
                       </BarChart>
                     </ResponsiveContainer>
@@ -351,8 +355,8 @@ export default function Dashboard() {
                         <YAxis axisLine={false} tickLine={false} fontSize={9} tick={{ fill: '#94a3b8' }} allowDecimals={false} />
                         <Tooltip cursor={{ fill: '#f0f9ff' }}
                           contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.12)', fontSize: 12 }} />
-                        <Bar dataKey="value" name="Completed" fill="#10b981" radius={[6,6,0,0]} barSize={28}>
-                          <LabelList dataKey="value" position="top" fontSize={11} fontWeight={700} fill="#10b981" />
+                        <Bar dataKey="value" name="Completed" fill={COLORS[0]} radius={[6,6,0,0]} barSize={28}>
+                          <LabelList dataKey="value" position="top" fontSize={11} fontWeight={700} fill={COLORS[0]} />
                         </Bar>
                       </BarChart>
                     </ResponsiveContainer>
@@ -368,6 +372,8 @@ export default function Dashboard() {
                     Client Breakdown
                   </h4>
                 </div>
+                
+                {/* (Stage Details moved below to a full-width card) */}
                 <div className="flex-1 overflow-y-auto max-h-[300px]">
                   <table className="w-full text-left text-xs sm:text-sm">
                     <thead className="bg-slate-50 sticky top-0 text-[10px] text-slate-500 font-bold uppercase tracking-widest">
@@ -428,18 +434,53 @@ export default function Dashboard() {
   if (!data) return <div className="text-slate-600 font-medium p-8 text-center bg-white rounded-xl shadow-sm border border-slate-100">Failed to load data.</div>;
 
   const { metrics, recentActivity, pipelineData } = data;
+  const maxPipelineCount = Math.max(...pipelineData.map((p: any) => p.count), 1);
+
+  // Additional small chart data
+  const weeklyLeads = (() => {
+    const now = Date.now();
+    const days: Record<string, number> = {};
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now - i * 24 * 60 * 60 * 1000);
+      const key = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+      days[key] = 0;
+    }
+    data.workflow.forEach((w: any) => {
+      const t = new Date(w['Updated At']).getTime();
+      if (now - t <= 7 * 24 * 60 * 60 * 1000) {
+        const key = new Date(t).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+        if (days[key] !== undefined) days[key]++;
+      }
+    });
+    return Object.entries(days).map(([name, value]) => ({ name, value }));
+  })();
+
+  const subsidyBreakdown = (() => {
+    const map = new Map<string, number>();
+    data.subsidies.forEach((s: any) => {
+      const k = s.Status || 'Not Applied';
+      map.set(k, (map.get(k) || 0) + 1);
+    });
+    // include Not Applied from clients
+    const appliedIds = new Set(data.subsidies.map((s: any) => s['Client ID']));
+    const notAppliedCount = data.clients.filter((c: any) => !appliedIds.has(c.ID)).length;
+    map.set('Not Applied', (map.get('Not Applied') || 0) + notAppliedCount);
+    return Array.from(map.entries()).map(([name, value]) => ({ name, value }));
+  })();
+
+  const topPendingPayments = (() => {
+    const list = data.payments
+      .filter((p: PaymentRow) => parseFloat(p['Pending Amount (₹)']) > 0)
+      .sort((a: any, b: any) => parseFloat(b['Pending Amount (₹)']) - parseFloat(a['Pending Amount (₹)']))
+      .slice(0, 5)
+      .map((p: any) => ({ name: data.clientMap.get(p['Client ID']) || p['Client ID'], value: parseFloat(p['Pending Amount (₹)']) }));
+    return list;
+  })();
 
   return (
     <div className="space-y-4 md:space-y-8 animate-in fade-in duration-700">
       
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
-        <div>
-          <h2 className="text-xl font-bold text-slate-800">Business Intelligence</h2>
-          <p className="text-xs text-slate-500 font-medium mt-1 flex items-center gap-1">
-            <Info className="w-3 h-3" /> Overview of your solar installation pipeline and financials
-          </p>
-        </div>
-      </div>
+      {/* Removed Business Intelligence header per request */}
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
         <MetricCard title="Total Leads" value={metrics.totalLeads} icon={<Users className="w-5 h-5 sm:w-6 sm:h-6" />} colorWrapper="bg-blue-700 text-white" onClick={() => handleMetricClick('totalLeads')} isActive={selectedMetric === 'totalLeads'} />
@@ -452,24 +493,163 @@ export default function Dashboard() {
       {renderDetailSection()}
 
       <div className="grid grid-cols-1 gap-4 md:gap-8 lg:grid-cols-3">
-        <Card className="col-span-1 lg:col-span-2 shadow-sm border-slate-100">
-          <div className="px-6 py-5 border-b border-slate-50 flex justify-between items-center">
-            <h3 className="font-bold text-slate-800">Pipeline Snapshot</h3>
-            <span className="text-[10px] font-bold bg-blue-50 text-blue-700 px-3 py-1 rounded-full uppercase">Analytics</span>
-          </div>
-          <CardContent className="p-6">
-            <div className="h-80 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={pipelineData} layout="vertical" margin={{ top: 5, right: 30, left: 100, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
-                  <XAxis type="number" stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
-                  <YAxis dataKey="name" type="category" stroke="#64748b" tick={{fontSize: 10, fontWeight: 500}} width={90} tickLine={false} axisLine={false} />
-                  <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} />
-                  <Bar dataKey="count" fill="#3b82f6" radius={[0, 6, 6, 0]} barSize={22}>
-                    <LabelList dataKey="count" position="right" fill="#3b82f6" fontSize={11} fontWeight={700} />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+        <Card className="col-span-1 lg:col-span-2 shadow-md border-slate-100 overflow-hidden rounded-2xl">
+          <div className="px-6 py-5 border-b border-slate-50 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+              <div>
+                <h3 className="font-extrabold text-slate-800 text-lg">Pipeline Snapshot</h3>
+                <p className="text-xs text-slate-500 mt-1">Real-time overview of your project pipeline</p>
+              </div>
+              <div className="flex items-center gap-3 mt-3 sm:mt-0">
+                <button onClick={() => setShowAnalytics(true)} className="text-[11px] font-semibold bg-white border border-slate-100 px-3 py-1 rounded-full shadow-sm">Analytics</button>
+                <button onClick={() => navigate('/clients?add=1')} style={{ backgroundColor: COLORS[0] }} className="text-[11px] font-semibold text-white px-3 py-1.5 rounded-full shadow-sm">+ Add Lead</button>
+              </div>
+            </div>
+
+          <CardContent className="p-4 sm:p-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Left: Large KPI */}
+              <div className="col-span-1 md:col-span-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="rounded-2xl p-6 pl-16 md:pl-20 bg-gradient-to-br from-sky-900 to-sky-700 text-white shadow-lg flex flex-col justify-between relative overflow-hidden">
+                    <div className="absolute top-3 left-4 sm:top-4 sm:left-6 w-8 sm:w-12 h-8 sm:h-12 rounded-lg bg-white/12 flex items-center justify-center">
+                      <Users className="w-5 sm:w-6 h-5 sm:h-6 text-white/90" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold opacity-95">Total Projects</p>
+                      <p className="text-2xl sm:text-3xl md:text-5xl font-extrabold mt-2 leading-tight">{metrics.totalLeads}</p>
+                    </div>
+                    <div className="text-xs opacity-90 mt-3 flex items-center gap-2">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="opacity-90"><path d="M5 12l5 5L20 7" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      Increased from last month
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-3">
+                    <div className="rounded-xl p-3 bg-white border border-slate-100 shadow-sm flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
+                        <Flag className="w-5 h-5 text-blue-600" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-500">Ended Projects</p>
+                        <div className="text-xl font-extrabold text-slate-900 mt-1">{metrics.completedProjects}</div>
+                      </div>
+                    </div>
+                    <div className="rounded-xl p-3 bg-white border border-slate-100 shadow-sm flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-sky-50 flex items-center justify-center">
+                        <Wrench className="w-5 h-5 text-sky-600" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-500">Running Projects</p>
+                        <div className="text-xl font-extrabold text-slate-900 mt-1">{metrics.ongoingInstallations}</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Project analytics pills */}
+                <div className="mt-5 bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
+                  <p className="text-sm font-semibold text-slate-700 mb-3">Project Analytics</p>
+                  <div className="flex items-end gap-3 h-28">
+                    {/* Render seven pill-style bars to mimic the visual */}
+                    {['S','M','T','W','T','F','S'].map((d, i) => {
+                      const height = [28,36,48,74,48,30,22][i] || 30;
+                      const isAccent = i === 3; // mid-week accent
+                      return (
+                        <div key={d} className="flex flex-col items-center gap-2 w-10">
+                          <div className={`w-full rounded-full transition-all`} style={{height: `${height}px`, background: isAccent ? COLORS[0] : '#f1f5f9', boxShadow: isAccent ? '0 6px 18px rgba(11,95,255,0.18)' : 'none'}} />
+                          <div className="text-[11px] text-slate-500">{d}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Small charts row */}
+                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="rounded-lg bg-white border border-slate-100 p-3 shadow-sm">
+                    <p className="text-xs text-slate-500">Leads (7d)</p>
+                    <div className="h-16 mt-2">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={weeklyLeads} margin={{ top: 0, right: 0, left: -10, bottom: 0 }}>
+                          <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} />
+                          <YAxis hide domain={[0, 'dataMax']} />
+                          <Bar dataKey="value" fill={COLORS[0]} barSize={8} radius={4} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg bg-white border border-slate-100 p-3 shadow-sm">
+                    <p className="text-xs text-slate-500">Top Pending (₹)</p>
+                    <div className="h-16 mt-2">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={topPendingPayments} margin={{ top: 0, right: 0, left: -8, bottom: 0 }}>
+                          <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#94a3b8' }} />
+                          <YAxis hide domain={[0, 'dataMax']} />
+                          <Bar dataKey="value" fill="#ef4444" barSize={8} radius={4} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right: Progress + reminders */}
+              <div className="col-span-1 flex flex-col gap-4">
+                <div className="rounded-xl p-4 bg-white border border-slate-100 shadow-sm flex flex-col items-center justify-center">
+                  <p className="text-xs text-slate-500">Project Leads</p>
+                  <div className="relative mt-3 flex flex-col items-center">
+                    <div className="text-3xl sm:text-4xl font-extrabold text-slate-900">{metrics.totalLeads}</div>
+                    <div className="text-[11px] text-slate-400">Total leads</div>
+                    <div className="mt-3 w-full grid grid-cols-2 gap-2">
+                      <div className="text-center">
+                        <div className="text-xs text-slate-500">Active Projects</div>
+                        <div className="text-lg font-bold text-slate-900">{metrics.ongoingInstallations}</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-xs text-slate-500">Completed</div>
+                        <div className="text-lg font-bold text-slate-900">{metrics.completedProjects}</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-xl p-4 bg-white border border-slate-100 shadow-sm relative">
+                  <p className="text-sm font-semibold text-slate-700 mb-2">Subsidy Breakdown</p>
+                  <div className="h-36 flex items-center justify-center relative">
+                    <ResponsiveContainer width="100%" height={140}>
+                      <PieChart>
+                        <Pie data={subsidyBreakdown} dataKey="value" nameKey="name" innerRadius={34} outerRadius={56} paddingAngle={4}>
+                          {subsidyBreakdown.map((s: any, i: number) => (
+                            <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 6px 18px rgba(0,0,0,0.08)' }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <div className="flex flex-col items-center">
+                        <div className="text-2xl font-extrabold text-slate-800">{data.subsidies.length}</div>
+                        <div className="text-xs text-slate-400">Total Subsidy</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-xl p-4 bg-white border border-slate-100 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold text-slate-700">Live Updates</p>
+                    <div className="text-[11px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full font-semibold">Live</div>
+                  </div>
+                  <div className="mt-4 p-6 bg-slate-50 rounded-lg text-center">
+                    <div className="flex items-center justify-center gap-3">
+                      <Zap className="w-6 h-6 text-emerald-500" />
+                    </div>
+                    <p className="text-sm text-slate-600 mt-3">No updates yet</p>
+                    <p className="text-xs text-slate-400 mt-1">Pipeline updates will appear here in real time.</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -495,6 +675,113 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+      
+      {/* Stage Details — full width horizontal cards */}
+      <Card className="shadow-sm border-slate-100">
+        <div className="px-6 py-4 border-b border-slate-50 flex items-center justify-between">
+          <div>
+            <h3 className="font-bold text-slate-800">Stage Details</h3>
+            <p className="text-xs text-slate-500">Real-time overview of your project pipeline</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button className="text-xs text-slate-500 bg-slate-50 px-3 py-1 rounded-md border border-slate-100">All Stages</button>
+            <button className="text-xs text-slate-500 bg-slate-50 px-3 py-1 rounded-md border border-slate-100">↻</button>
+          </div>
+        </div>
+        <CardContent className="p-4">
+          <div className="overflow-x-auto -mx-4 px-4 snap-x snap-mandatory touch-pan-x">
+            <div className="flex gap-4 min-w-max">
+              {pipelineData.map((row: any, i: number) => {
+                const items = data.workflow.filter((w: any) => w.Stage === row.name);
+                const count = items.length;
+                const now = Date.now();
+                const avgDays = items.length ? Math.round(items.reduce((s: number, w: any) => s + ((now - new Date(w['Updated At']).getTime()) / (1000*60*60*24)), 0) / items.length) : 0;
+                const newThisMonth = items.filter((w: any) => (now - new Date(w['Updated At']).getTime()) <= 30*24*60*60*1000).length;
+                const color = COLORS[i % COLORS.length];
+                const IconMap: Record<string, any> = {
+                  'Lead': Users,
+                  'Survey Scheduled': Calendar,
+                  'Survey Done': CheckCircle2,
+                  'Quotation Sent': ArrowRight,
+                  'Quotation Approved': CheckCircle2,
+                  'Installation Started': Wrench,
+                  'Installation Completed': CheckCircle2,
+                  'Subsidy Applied': FileText,
+                  'Subsidy Received': FileText,
+                  'Project Closed': Flag,
+                };
+                const StageIcon = IconMap[row.name] || Users;
+                return (
+                  <div key={row.name} className="w-40 sm:w-48 bg-white border border-slate-100 rounded-2xl p-3 sm:p-4 text-center flex-shrink-0 snap-start">
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="w-8 sm:w-9 h-8 sm:h-9 rounded-lg flex items-center justify-center" style={{ background: `${color}1A` }}>
+                        <StageIcon className="w-3 sm:w-4 h-3 sm:h-4" style={{ color }} />
+                      </div>
+                      <div className="text-sm font-semibold text-slate-700">{row.name}</div>
+                      <div className="mt-2 text-[12px] text-slate-500">Avg time</div>
+                      <div className="text-sm font-bold text-slate-900">{avgDays} d</div>
+                      <div className="mt-2 text-[12px] text-slate-500">New (30d)</div>
+                      <div className="text-sm font-bold text-slate-900">{newThisMonth}</div>
+                      <div className="mt-3 text-2xl font-extrabold text-slate-900">{count}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+      {/* Analytics Modal */}
+      {showAnalytics && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowAnalytics(false)} />
+          <div className="relative w-[92%] max-w-3xl mx-auto">
+            <Card className="rounded-2xl overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+                <div>
+                  <h3 className="font-bold text-slate-800">Analytics</h3>
+                  <p className="text-xs text-slate-500">Quick overview</p>
+                </div>
+                <div>
+                  <button onClick={() => setShowAnalytics(false)} className="p-2 rounded-md text-slate-500 hover:bg-slate-50">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+              <CardContent className="p-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <p className="text-xs text-slate-500">Leads (7d)</p>
+                    <div className="h-28">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={weeklyLeads} margin={{ top: 0, right: 0, left: -10, bottom: 0 }}>
+                          <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} />
+                          <YAxis hide domain={[0, 'dataMax']} />
+                          <Bar dataKey="value" fill={COLORS[0]} barSize={8} radius={4} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-xs text-slate-500">Pipeline Breakdown</p>
+                    <div className="h-28">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie data={detailChartData} dataKey="value" innerRadius={30} outerRadius={50} paddingAngle={4}>
+                            {detailChartData.map((d: any, i: number) => (
+                              <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                            ))}
+                          </Pie>
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

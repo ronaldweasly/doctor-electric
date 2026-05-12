@@ -20,6 +20,7 @@ export function SlideOver({ isOpen, onClose, title, children, fullHeight = false
       document.body.style.overflow = 'hidden';
       document.body.style.position = 'fixed';
       document.body.style.width = '100%';
+      document.body.classList.add('hide-bottom-nav');
       document.addEventListener('keydown', handleEscape);
     }
     
@@ -27,6 +28,7 @@ export function SlideOver({ isOpen, onClose, title, children, fullHeight = false
       document.body.style.overflow = 'unset';
       document.body.style.position = 'unset';
       document.body.style.width = 'unset';
+      document.body.classList.remove('hide-bottom-nav');
       document.removeEventListener('keydown', handleEscape);
     };
   }, [isOpen, onClose]);

@@ -349,12 +349,15 @@ export function MultiStepClientForm({ salesUsers, user, onSuccess }: MultiStepCl
       </div>
 
       {/* Form content */}
-      <div className="flex-1 overflow-y-auto px-4 py-6">
+      <div className="flex-1 overflow-y-auto px-4 py-6 pb-28 sm:pb-6">
         {steps[step].content}
       </div>
 
       {/* Bottom navigation */}
-      <div className="border-t border-slate-100 px-4 py-4 bg-white flex gap-3 sticky bottom-0">
+      <div
+        className="border-t border-slate-100 px-4 py-4 bg-white flex gap-3 sticky bottom-0 z-30"
+        style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom, 0px))' }}
+      >
         <Button
           type="button"
           variant="secondary"

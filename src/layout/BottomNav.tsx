@@ -23,7 +23,7 @@ export function BottomNav() {
   );
 
   return (
-    <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200
+    <nav className="app-bottom-nav lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200
                     safe-bottom shadow-[0_-1px_8px_rgba(0,0,0,0.08)]">
       <div className="flex items-stretch justify-around h-16">
         {filteredNav.map((item) => (
