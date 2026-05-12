@@ -14,20 +14,7 @@ A powerful CRM tailored for Solar Installation companies, built with React, Tail
 
 **⏱️ Quick Setup: See [OAUTH_SETUP.md](OAUTH_SETUP.md) for step-by-step instructions (5 minutes)**
 
-### 1. Google Cloud Console Setup
-To run this application, you need to set up a Google Cloud Project with the free Sheets API and OAuth 2.0.
 
-1. Go to the [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a **New Project**.
-3. Under **APIs & Services > Library**, search for and enable:
-   - **Google Sheets API** ✓
-   - **Google+ API** ✓
-4. Under **APIs & Services > OAuth consent screen**:
-   - Choose **External** (or Internal if you have a Google Workspace)
-   - Fill in required fields (App Name, User Support Email).
-   - Under Scopes, add:
-     - `.../auth/spreadsheets`
-     - `email`
      - `profile`
    - Add your Google account under **Test Users**.
 5. Under **APIs & Services > Credentials**:
