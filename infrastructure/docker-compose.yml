@@ -64,8 +64,8 @@ services:
   # ---------------------------------------------------------------------------
   frontend:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
+      context: ../                  # Root directory (has package.json, src/, vite.config.ts)
+      dockerfile: infrastructure/frontend/Dockerfile
       args:
         - VITE_API_URL=${VITE_API_URL}
         - VITE_APP_NAME=${VITE_APP_NAME:-SolarCRM}
